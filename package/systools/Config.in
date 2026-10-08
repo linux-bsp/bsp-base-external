@@ -1,9 +1,0 @@
-config BR2_PACKAGE_SYSTOOLS
-	bool "systools"
-	depends on BR2_USE_MMU
-	help
-	  Build the standalone system analysis and monitoring tool.
-	  It provides memory, scheduler, and eMMC SMART subcommands.
-
-comment "systools needs a toolchain w/ MMU"
-	depends on !BR2_USE_MMU

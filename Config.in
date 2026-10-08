@@ -1,6 +1,6 @@
 menu "LINUX_BSP external board options"
 
 source "$BR2_EXTERNAL_LINUX_BSP_PATH/package/paf/Config.in"
-source "$BR2_EXTERNAL_LINUX_BSP_PATH/package/systools/Config.in"
+source "$BR2_EXTERNAL_LINUX_BSP_PATH/package/bmctool/Config.in"
 
 endmenu
