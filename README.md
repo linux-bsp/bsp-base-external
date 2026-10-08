@@ -1,53 +1,21 @@
-# Buildroot External Tree
+# TI AM62x Buildroot External Tree
 
-This repository contains the Buildroot external tree used by the BSP workspace.
-It is intended to host board-specific Buildroot integration for multiple boards,
-not only the NXP i.MX6ULL EVK.
+This external tree contains the Alientek AM62x board configuration, image
+layout, root filesystem files, and the PAF and bmctool packages.
 
-Each board should keep its Buildroot defconfig, board files, post-image scripts,
-root filesystem overlays, and package overrides under a board-specific directory.
-Existing i.MX6ULL EVK support is one board configuration in this external tree.
-
-## Current Board Support
-
-- `configs/imx6ullevk_defconfig` for the NXP i.MX6ULL EVK
-- `configs/imx6ullevk_debug_study_defconfig` for the i.MX6ULL EVK debug/study profile
-- `board/freescale/imx6ull-evk/` for i.MX6ULL EVK board files
-- `package/paf/` for PAF integration
-
-## Build
-
-From the BSP workspace root, run Buildroot with this external tree:
+From the BSP workspace root:
 
 ```sh
-cd buildroot
-make BR2_EXTERNAL=../br2-external imx6ullevk_defconfig
-make
+make -C buildroot BR2_EXTERNAL=../br2-external alientek_am62x_defconfig
+make -C buildroot
 ```
 
-The i.MX6ULL EVK defconfig is derived from Buildroot's upstream
-`configs/imx6ullevk_defconfig`, with board-specific paths redirected to this
-external tree.
+The board defconfig is `configs/alientek_am62x_defconfig`. Board files are under
+`board/ti/am625/`; its `local.mk` selects workspace copies of Linux, U-Boot,
+PAF, and bmctool. The post-image script in
+`support/scripts/firmware-image.sh` creates the RAW A/B firmware components
+and SD card image from `board/ti/am625/layout/`.
 
-The current board configuration uses local source overrides from the BSP
-workspace:
-
-- `../linux/linux-7.0`
-- `../uboot/uboot-2024.10`
-- `../paf`
-
-## Adding Board Support
-
-When adding another board, keep the layout predictable:
-
-- Add the board defconfig under `configs/`.
-- Add board files under `board/<vendor>/<board>/`.
-- Keep root filesystem overlays, kernel config fragments, post-image scripts,
-  and image layout files inside the board directory.
-- Add board-specific package overrides through `local.mk` or another clearly
-  named board-local makefile.
-- Document board-specific build and boot steps in the board directory.
-
-Use the i.MX6ULL EVK files as a reference for the current structure, but avoid
-hard-coding new board support to i.MX6ULL-specific paths or names unless the
-configuration is genuinely i.MX6ULL-specific.
+The defconfig expects an AArch64 GCC 14 Buildroot SDK at
+`/opt/buildroot/aarch64-ca53-linux-gnu_sdk-buildroot`. Change the toolchain
+path in the defconfig or install that SDK before building.

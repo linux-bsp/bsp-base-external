@@ -4,7 +4,7 @@
 #
 ################################################################################
 # Add this override to the external tree's BR2_PACKAGE_OVERRIDE_FILE, for
-# example board/<vendor>/<board>/local.mk. It allows Buildroot to use a local
+# example board/ti/am625/local.mk. It allows Buildroot to use a local
 # PAF source tree instead of fetching from git. This is useful for:
 # - Rapid iteration during development
 # - Testing local changes before pushing to git

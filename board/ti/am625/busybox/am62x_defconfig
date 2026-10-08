@@ -135,7 +135,7 @@ CONFIG_TRY_LOOP_CONFIGURE=y
 #
 
 #
-# Archival Utilities - 全部关闭，initramfs 不需要
+# Archival Utilities
 #
 # CONFIG_FEATURE_SEAMLESS_XZ is not set
 # CONFIG_FEATURE_SEAMLESS_LZMA is not set

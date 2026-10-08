@@ -1,4 +1,0 @@
-#!/bin/sh
-
-/bin/echo "[S01basemod] Base module initialization"
-/bin/echo "[S01basemod] System ready"

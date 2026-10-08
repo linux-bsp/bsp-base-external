@@ -1,2 +1,2 @@
 name: LINUX_BSP
-desc: External Buildroot tree for NXP i.MX6ULL \ am62x boards
+desc: External Buildroot tree for TI AM62x

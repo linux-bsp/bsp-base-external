@@ -17,7 +17,7 @@ config BR2_PACKAGE_PAF_DEFCONFIG
 	help
 	  Specify which PAF defconfig to load before building.
 	  Product external trees should set this to a product-specific
-	  PAF defconfig, for example imx6ull_modules_defconfig. Debug
+	  PAF defconfig, for example ti_am62x_defconfig. Debug
 	  images should use a defconfig that enables CONFIG_PDI,
 	  CONFIG_PDEBUG, and CONFIG_PDI_CLAIM_TEST when board-side claim
 	  validation is required.
