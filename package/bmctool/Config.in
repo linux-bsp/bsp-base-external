@@ -5,8 +5,7 @@ config BR2_PACKAGE_BMCTOOL
 	depends on !BR2_STATIC_LIBS
 	help
 	  Standalone BMC client library with Redfish, IPMI and PMCP backends.
-	  Installs libbmctool.so and its public header for consumers such as
-	  ptelemetryd.
+	  Installs libbmctool.so and the bmctool/bmctool.h public header.
 
 if BR2_PACKAGE_BMCTOOL
 

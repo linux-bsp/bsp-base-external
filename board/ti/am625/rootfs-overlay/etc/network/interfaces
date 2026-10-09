@@ -3,7 +3,7 @@ iface lo inet loopback
 
 auto eth0
 iface eth0 inet static
-    address 192.168.18.246
+    address 192.168.10.211
     netmask 255.255.255.0
-    gateway 192.168.18.1
+    gateway 192.168.10.1
     dns-nameservers 223.5.5.5 223.6.6.6
