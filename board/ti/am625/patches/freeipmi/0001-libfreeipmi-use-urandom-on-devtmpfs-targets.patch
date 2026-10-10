@@ -1,0 +1,62 @@
+From 2fb682efcd4b2f10e890c0b6750915f432693b19 Mon Sep 17 00:00:00 2001
+From: guohao <guohaoprc@163.com>
+Date: Sat, 10 Oct 2026 00:00:00 +0800
+Subject: [PATCH] libfreeipmi: use urandom on devtmpfs targets
+
+Buildroot configures FreeIPMI with --without-random-device because target
+device nodes cannot be inspected while cross compiling.  This makes
+ipmi_get_random() return EPERM and prevents every IPMI 2.0 RMCP+ session
+from being created.
+
+The AM625 target uses devtmpfs and provides /dev/urandom at runtime.  Open
+that known runtime interface directly instead of compiling the random
+implementation out based on a configure-time target file check.
+
+Signed-off-by: guohao <guohaoprc@163.com>
+---
+ libfreeipmi/util/ipmi-util.c | 16 +---------------
+ 1 file changed, 1 insertion(+), 15 deletions(-)
+
+diff --git a/libfreeipmi/util/ipmi-util.c b/libfreeipmi/util/ipmi-util.c
+index 66547c0..f63875b 100644
+--- a/libfreeipmi/util/ipmi-util.c
++++ b/libfreeipmi/util/ipmi-util.c
+@@ -171,9 +171,7 @@ ipmi_check_completion_code_success (fiid_obj_t obj_cmd)
+ int
+ ipmi_get_random (void *buf, unsigned int buflen)
+ {
+-#if (HAVE_DEVURANDOM || HAVE_DEVRANDOM)
+   int fd, len, rv = -1;
+-#endif /* !(HAVE_DEVURANDOM || HAVE_DEVRANDOM) */
+ 
+   if (!buf)
+     {
+@@ -184,14 +182,8 @@ ipmi_get_random (void *buf, unsigned int buflen)
+   if (!buflen)
+     return (0);
+ 
+-#if (HAVE_DEVURANDOM || HAVE_DEVRANDOM)
+-#if HAVE_DEVURANDOM
+   if ((fd = open ("/dev/urandom", O_RDONLY)) < 0)
+-    goto cleanup;
+-#else  /* !HAVE_DEVURANDOM */
+-  if ((fd = open ("/dev/random", O_RDONLY)) < 0)
+-    goto cleanup;
+-#endif /* !HAVE_DEVURANDOM */
++    return (-1);
+ 
+   if ((len = read (fd, buf, buflen)) < 0)
+     goto cleanup;
+@@ -204,10 +196,6 @@ ipmi_get_random (void *buf, unsigned int buflen)
+   /* ignore potential error, cleanup path */
+   close (fd);
+   return (rv);
+-#else /* !(HAVE_DEVURANDOM || HAVE_DEVRANDOM) */
+-  SET_ERRNO (EPERM);
+-  return (-1);
+-#endif /* !(HAVE_DEVURANDOM || HAVE_DEVRANDOM) */
+ }
+ 
+ const char *
+-- 
+2.51.0
