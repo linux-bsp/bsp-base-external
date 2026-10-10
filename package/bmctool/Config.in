@@ -9,6 +9,13 @@ config BR2_PACKAGE_BMCTOOL
 
 if BR2_PACKAGE_BMCTOOL
 
+config BR2_PACKAGE_BMCTOOL_COLLECTOR
+	bool "periodic collector"
+	default y
+	help
+	  Build the optional bounded periodic collection scheduler. Disable this
+	  when only synchronous collection and snapshot APIs are required.
+
 config BR2_PACKAGE_BMCTOOL_REDFISH
 	bool "Redfish backend"
 	default y
