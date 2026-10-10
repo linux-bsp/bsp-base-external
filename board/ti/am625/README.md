@@ -14,6 +14,14 @@ start of the SD card, so interrupted updates to slot A can require reflashing.
 
 The Redfish endpoint `192.168.10.201` is configured in
 `rootfs-overlay/etc/paf/ptelemetryd.conf`. Set its `username`, create
-`/etc/paf/bmc.password` on the target with the password on the first line
+`/etc/bmctool/xfusion.password` on the target with the password on the first line
 (mode 0600), then set `[daemon] enabled = true` to start telemetry collection.
 Keep credentials out of the repository.
+
+`bmc_test` reads its multi-device inventory from
+`rootfs-overlay/etc/bmctool/devices.conf`. The image currently contains xFusion
+and Supermicro profiles with independent Redfish/IPMI endpoints, usernames,
+password-file paths, timeouts, and protocol flags. Select one with
+`bmc_test --device-id <id>`. Local password files under
+`rootfs-overlay/etc/bmctool/` are ignored by Git; the corresponding `.example`
+files document their expected names.

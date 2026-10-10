@@ -1,0 +1,3 @@
+# Local BMC credentials included by the rootfs overlay during private builds.
+/board/ti/am625/rootfs-overlay/etc/bmctool/xfusion.password
+/board/ti/am625/rootfs-overlay/etc/bmctool/supermicro.password
