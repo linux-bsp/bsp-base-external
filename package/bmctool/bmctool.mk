@@ -22,4 +22,13 @@ ifeq ($(BR2_PACKAGE_BMCTOOL_IPMI),y)
 BMCTOOL_DEPENDENCIES += freeipmi
 endif
 
+# Previous package versions installed these as separate applications. Their
+# functionality now lives in bmctool_test; remove stale files on incremental
+# target/staging installs as well as on clean builds.
+define BMCTOOL_REMOVE_LEGACY_APPS
+	$(RM) -f $(addprefix $(TARGET_DIR)/usr/bin/,bmctool_telemetry bmctool_epdu_decode) \
+		$(addprefix $(STAGING_DIR)/usr/bin/,bmctool_telemetry bmctool_epdu_decode)
+endef
+BMCTOOL_POST_INSTALL_TARGET_HOOKS += BMCTOOL_REMOVE_LEGACY_APPS
+
 $(eval $(cmake-package))
