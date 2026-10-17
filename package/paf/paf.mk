@@ -15,15 +15,7 @@ PAF_INSTALL_TARGET = YES
 PAF_ADD_TOOLCHAIN_DEPENDENCY = NO
 
 # Dependencies - Kconfig + CMake/Kbuild build system
-PAF_DEPENDENCIES = host-pkgconf host-cmake host-flex host-bison linux
-
-ifeq ($(BR2_PACKAGE_PAF_BMC_REDFISH),y)
-PAF_DEPENDENCIES += libcurl cjson
-endif
-
-ifeq ($(BR2_PACKAGE_PAF_BMC_IPMI),y)
-PAF_DEPENDENCIES += freeipmi
-endif
+PAF_DEPENDENCIES = host-python3 host-pkgconf host-cmake host-flex host-bison linux
 
 ifeq ($(BR2_PACKAGE_PAF_FW),y)
 PAF_DEPENDENCIES += dtc libcurl openssl
@@ -58,22 +50,28 @@ PAF_KCONFIG_DEFCONFIG = $(call qstrip,$(BR2_PACKAGE_PAF_DEFCONFIG))
 PAF_BUILD_TYPE = $(call qstrip,$(BR2_PACKAGE_PAF_BUILD_TYPE))
 
 # Build in-tree for Buildroot (output/build/paf/.build)
-PAF_BUILD_OUTPUT = $(@D)/.build
-PAF_MODULES_OUTPUT = $(@D)/.build/modules
+PAF_BUILD_OUTPUT = $(@D)/.build/target
+PAF_MODULES_OUTPUT = $(PAF_BUILD_OUTPUT)/modules
 PAF_MODULE_EXTRA_DIR = extra/pdm
 
 PAF_MAKE_OPTS = \
 	BUILD_DIR="$(PAF_BUILD_OUTPUT)" \
+	PAF_SOURCE_REVISION="$(PAF_VERSION)" \
+	PYTHON3="$(HOST_DIR)/bin/python3" \
+	HOSTCC="$(HOSTCC)" \
 	MODULES_BUILD_DIR="$(PAF_MODULES_OUTPUT)" \
-	BR2_EXTERNAL=1 \
 	KERNEL_SRC="$(LINUX_DIR)" \
 	ARCH="$(KERNEL_ARCH)" \
 	CROSS_COMPILE="$(TARGET_CROSS)" \
 	CC="$(TARGET_CC)" \
 	CMAKE_BUILD_TYPE="$(PAF_BUILD_TYPE)" \
 	CMAKE_TOOLCHAIN_FILE="$(HOST_DIR)/share/buildroot/toolchainfile.cmake" \
-	CMAKE_EXTRA_FLAGS='-DCMAKE_C_COMPILER="$(TARGET_CC)" -DCMAKE_C_FLAGS="$(TARGET_CFLAGS)" -DCMAKE_EXE_LINKER_FLAGS="$(TARGET_LDFLAGS)"' \
+	CMAKE_EXTRA_FLAGS='-DCMAKE_C_FLAGS="$(filter-out -O% -g%,$(TARGET_CFLAGS))" -DCMAKE_EXE_LINKER_FLAGS="$(TARGET_LDFLAGS)"' \
 	CMAKE_INSTALL_PREFIX="/usr"
+
+PAF_CHECK_FEATURES = $(HOST_DIR)/bin/python3 $(@D)/scripts/check_buildroot.py \
+    --build-dir "$(PAF_BUILD_OUTPUT)" \
+    --firmware "$(BR2_PACKAGE_PAF_FW)"
 
 # Configure using make (kernel-style interface)
 # This loads the defconfig and generates .config + autoconf.h
@@ -84,26 +82,27 @@ define PAF_CONFIGURE_CMDS
 	}
 	@echo "PAF: Loading defconfig $(PAF_KCONFIG_DEFCONFIG)"
 	$(MAKE) -C $(@D) $(PAF_MAKE_OPTS) $(PAF_KCONFIG_DEFCONFIG)
+	$(PAF_CHECK_FEATURES)
 	@echo "PAF: Configuration loaded successfully"
 endef
 
 # Build userspace libraries and kernel modules.
 define PAF_BUILD_CMDS
 	@echo "PAF: Building with configuration $(PAF_KCONFIG_DEFCONFIG)"
-	rm -f "$(PAF_BUILD_OUTPUT)/CMakeCache.txt"
+	$(PAF_CHECK_FEATURES)
 	$(TARGET_MAKE_ENV) $(MAKE) -C $(@D) $(PAF_MAKE_OPTS) all
 endef
 
 # Clean build artifacts (keep configuration)
 define PAF_CLEAN_CMDS
 	@echo "PAF: Cleaning build artifacts"
-	-$(MAKE) -C $(@D) clean
+	-$(MAKE) -C $(@D) $(PAF_MAKE_OPTS) clean
 endef
 
 # Complete clean (remove configuration and build directory)
 define PAF_DISTCLEAN_CMDS
 	@echo "PAF: Complete clean"
-	-$(MAKE) -C $(@D) distclean
+	-$(MAKE) -C $(@D) $(PAF_MAKE_OPTS) distclean
 endef
 
 # Install userspace shared libraries, tools, and kernel modules to target.
