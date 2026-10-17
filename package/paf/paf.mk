@@ -17,21 +17,21 @@ PAF_ADD_TOOLCHAIN_DEPENDENCY = NO
 # Dependencies - Kconfig + CMake/Kbuild build system
 PAF_DEPENDENCIES = host-pkgconf host-cmake host-flex host-bison linux
 
-ifeq ($(BR2_PACKAGE_PAF_PDI_BMC_REDFISH),y)
+ifeq ($(BR2_PACKAGE_PAF_BMC_REDFISH),y)
 PAF_DEPENDENCIES += libcurl cjson
 endif
 
-ifeq ($(BR2_PACKAGE_PAF_PDI_BMC_IPMI),y)
+ifeq ($(BR2_PACKAGE_PAF_BMC_IPMI),y)
 PAF_DEPENDENCIES += freeipmi
 endif
 
-ifeq ($(BR2_PACKAGE_PAF_PDI_FW),y)
+ifeq ($(BR2_PACKAGE_PAF_FW),y)
 PAF_DEPENDENCIES += dtc libcurl openssl
 PAF_LICENSE += , GPL-2.0+
 PAF_LICENSE_FILES += LICENSE.GPL-2.0
 endif
 
-ifeq ($(BR2_PACKAGE_PAF_PDI_FW_FIT_SIGNATURE),y)
+ifeq ($(BR2_PACKAGE_PAF_FW_FIT_SIGNATURE),y)
 PAF_DEPENDENCIES += uboot-tools
 endif
 

@@ -19,11 +19,10 @@ config BR2_PACKAGE_PAF_DEFCONFIG
 	  Product external trees should set this to a product-specific
 	  PAF defconfig, for example ti_am62x_defconfig. Debug
 	  images should use a defconfig that enables CONFIG_PDI,
-	  CONFIG_PDEBUG, and CONFIG_PDI_CLAIM_TEST when board-side claim
-	  validation is required.
+	  CONFIG_PDEBUG when board-side claim validation is required.
 
-config BR2_PACKAGE_PAF_PDI_BMC_REDFISH
-	bool "Enable PAF PDI BMC Redfish dependencies"
+config BR2_PACKAGE_PAF_BMC_REDFISH
+	bool "Enable PAF BMC Redfish dependencies"
 	select BR2_PACKAGE_CJSON
 	select BR2_PACKAGE_LIBCURL
 	select BR2_PACKAGE_LIBCURL_FORCE_TLS
@@ -31,21 +30,21 @@ config BR2_PACKAGE_PAF_PDI_BMC_REDFISH
 	select BR2_PACKAGE_OPENSSL
 	select BR2_PACKAGE_OPENSSL_FORCE_LIBOPENSSL
 	help
-	  Select this when the PAF defconfig enables CONFIG_PDI_BMC_REDFISH.
-	  It provides libcurl and cJSON for the Redfish backend in libpdi.so.
+	  Select this when the PAF defconfig enables CONFIG_PAF_BMC_REDFISH.
+	  It provides libcurl and cJSON for the Redfish backend in libpaf_bmc.so.
 
-config BR2_PACKAGE_PAF_PDI_BMC_IPMI
-	bool "Enable PAF PDI BMC IPMI dependencies"
+config BR2_PACKAGE_PAF_BMC_IPMI
+	bool "Enable PAF BMC IPMI dependencies"
 	select BR2_PACKAGE_FREEIPMI
 	select BR2_PACKAGE_LIBGCRYPT if BR2_PACKAGE_LIBGPG_ERROR_ARCH_SUPPORTS
 	help
-	  Select this when the PAF defconfig enables CONFIG_PDI_BMC_IPMI.
-	  It provides libfreeipmi for the IPMI backend in libpdi.so.
+	  Select this when the PAF defconfig enables CONFIG_PAF_BMC_IPMI.
+	  It provides libfreeipmi for the IPMI backend in libpaf_bmc.so.
 	  libgcrypt is selected when available so FreeIPMI can support IPMI 2.0
 	  RMCP+ network sessions.
 
-config BR2_PACKAGE_PAF_PDI_FW
-	bool "Enable PAF PDI host firmware update dependencies"
+config BR2_PACKAGE_PAF_FW
+	bool "Enable PAF host firmware update dependencies"
 	depends on !BR2_STATIC_LIBS
 	select BR2_PACKAGE_CA_CERTIFICATES
 	select BR2_PACKAGE_DTC
@@ -56,14 +55,14 @@ config BR2_PACKAGE_PAF_PDI_FW
 	select BR2_PACKAGE_OPENSSL
 	select BR2_PACKAGE_OPENSSL_FORCE_LIBOPENSSL
 	help
-	  Select this when the PAF defconfig enables CONFIG_PDI_FW. It provides
+	  Select this when the PAF defconfig enables CONFIG_PAF_FW. It provides
 	  libfdt, libcurl, and OpenSSL for the host A/B firmware API in
-	  libpdi.so. CONFIG_FWCTL may additionally enable the command-line
+	  libpaf_firmware.so. CONFIG_FWCTL may additionally enable the command-line
 	  adapter, but it does not own these implementation dependencies.
 
-config BR2_PACKAGE_PAF_PDI_FW_FIT_SIGNATURE
-	bool "Install PDI firmware FIT signature verifier"
-	depends on BR2_PACKAGE_PAF_PDI_FW
+config BR2_PACKAGE_PAF_FW_FIT_SIGNATURE
+	bool "Install PAF firmware FIT signature verifier"
+	depends on BR2_PACKAGE_PAF_FW
 	select BR2_PACKAGE_UBOOT_TOOLS
 	select BR2_PACKAGE_UBOOT_TOOLS_FIT_SUPPORT
 	select BR2_PACKAGE_UBOOT_TOOLS_FIT_SIGNATURE_SUPPORT
@@ -98,7 +97,7 @@ config BR2_PACKAGE_PAF_INSTALL_HEADERS
 	bool "Install development headers"
 	default n
 	help
-	  Install development headers to $(STAGING_DIR)/usr/include/pdm/.
+	  Install development headers to $(STAGING_DIR)/usr/include/.
 	  Only needed for packages that depend on PAF.
 
 endif # BR2_PACKAGE_PAF
