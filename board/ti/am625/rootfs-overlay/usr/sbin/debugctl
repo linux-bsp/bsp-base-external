@@ -98,13 +98,13 @@ status_mode()
 
 usage()
 {
-	echo "PAF debug mode controller"
+	echo "EDK debug mode controller"
 	echo
 	echo "Usage: $0 COMMAND"
 	echo
 	echo "Commands:"
-	echo "  start    Enter debug mode: bypass health gating and stop PAF"
-	echo "  stop     Exit debug mode: restore PAF and health monitoring"
+	echo "  start    Enter debug mode: bypass health gating and stop EDK"
+	echo "  stop     Exit debug mode: restore EDK and health monitoring"
 	echo "  status   Show debug mode and managed service status"
 	echo "  help     Show this help"
 }

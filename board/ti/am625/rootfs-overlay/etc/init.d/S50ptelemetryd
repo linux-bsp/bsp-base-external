@@ -17,7 +17,7 @@ running()
 start()
 {
 	printf 'Starting ptelemetryd: '
-	if grep -Eq '^[[:space:]]*enabled[[:space:]]*=[[:space:]]*false([[:space:]]*#.*)?$' /etc/paf/ptelemetryd.conf 2>/dev/null; then
+	if grep -Eq '^[[:space:]]*enabled[[:space:]]*=[[:space:]]*false([[:space:]]*#.*)?$' /etc/edk/ptelemetryd.conf 2>/dev/null; then
 		rm -f "$PIDFILE"
 		echo "DISABLED"
 		return 0

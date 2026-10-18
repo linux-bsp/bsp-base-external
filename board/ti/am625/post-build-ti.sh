@@ -39,10 +39,10 @@ ln -snf /run/dropbear "$TARGET_DIR/etc/dropbear"
 # /etc/bmctool. Buildroot overlays do not remove deleted source files from an
 # incremental target directory.
 rm -f \
-	"$TARGET_DIR/etc/paf/bmc.password" \
-	"$TARGET_DIR/etc/paf/bmc.password.example" \
-	"$TARGET_DIR/etc/paf/supermicro-bmc.password" \
-	"$TARGET_DIR/etc/paf/supermicro-bmc.password.example"
+	"$TARGET_DIR/etc/edk/bmc.password" \
+	"$TARGET_DIR/etc/edk/bmc.password.example" \
+	"$TARGET_DIR/etc/edk/supermicro-bmc.password" \
+	"$TARGET_DIR/etc/edk/supermicro-bmc.password.example"
 
 # Credentials are local overlay inputs. Force safe permissions in the image
 # even when the developer's source file was created with a permissive umask.

@@ -32,7 +32,7 @@ deployment_is_confirmed()
 {
 	deployment=$1
 	status=$(/usr/sbin/fwctl \
-		--config "${FWCTL_CONFIG:-/etc/paf/firmware.conf}" status 2>/dev/null) ||
+		--config "${FWCTL_CONFIG:-/etc/edk/firmware.conf}" status 2>/dev/null) ||
 		return 1
 	printf '%s\n' "$status" |
 		grep -q "^deployment ${deployment}: .* successful=1 "
@@ -68,7 +68,7 @@ mark_good_worker()
 		return 0
 	fi
 	if /usr/sbin/fwctl \
-		--config "${FWCTL_CONFIG:-/etc/paf/firmware.conf}" \
+		--config "${FWCTL_CONFIG:-/etc/edk/firmware.conf}" \
 		mark-good; then
 		echo "fwctl: current deployment marked good"
 		return 0

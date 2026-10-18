@@ -1,29 +1,29 @@
 ################################################################################
 #
-# paf - Local development override
+# edk - Local development override
 #
 ################################################################################
 # Add this override to the external tree's BR2_PACKAGE_OVERRIDE_FILE, for
 # example board/ti/am625/local.mk. It allows Buildroot to use a local
-# PAF source tree instead of fetching from git. This is useful for:
+# EDK source tree instead of fetching from git. This is useful for:
 # - Rapid iteration during development
 # - Testing local changes before pushing to git
 # - Working offline
 #
 # Usage in a br2-external tree:
 #   1. Ensure the board defconfig sets BR2_PACKAGE_OVERRIDE_FILE.
-#   2. Add PAF_OVERRIDE_SRCDIR to that override file.
-#   3. Rebuild with: make paf-rebuild
+#   2. Add EDK_OVERRIDE_SRCDIR to that override file.
+#   3. Rebuild with: make edk-rebuild
 #
 # Note: package override files are usually product-local policy.
 ################################################################################
 
 # Override to use local source directory.
-PAF_OVERRIDE_SRCDIR = $(TOPDIR)/../paf
+EDK_OVERRIDE_SRCDIR = $(TOPDIR)/../edk
 
 # Optional: Override version for local builds
-# PAF_VERSION = 1.0.0-local-$(shell date +%Y%m%d)
+# EDK_VERSION = 1.0.0-local-$(shell date +%Y%m%d)
 
 # Optional: Use a specific git branch/tag/commit for local testing
-# PAF_VERSION = feature-branch
-# PAF_SITE_METHOD = git
+# EDK_VERSION = feature-branch
+# EDK_SITE_METHOD = git

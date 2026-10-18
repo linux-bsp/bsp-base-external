@@ -1,2 +1,2 @@
 AUTO_MARK_GOOD=1
-FWCTL_CONFIG=/etc/paf/firmware.conf
+FWCTL_CONFIG=/etc/edk/firmware.conf
