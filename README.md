@@ -1,7 +1,7 @@
 # TI AM62x Buildroot External Tree
 
 This external tree contains the Alientek AM62x board configuration, image
-layout, root filesystem files, and the EDK and bmctool packages.
+layout, root filesystem files, and the EDK and libbmc packages.
 
 From the BSP workspace root:
 
@@ -12,7 +12,7 @@ make -C buildroot
 
 The board defconfig is `configs/alientek_am62x_defconfig`. Board files are under
 `board/ti/am625/`; its `local.mk` selects workspace copies of Linux, U-Boot,
-EDK, and bmctool. The post-image script in
+EDK, and libbmc. The post-image script in
 `support/scripts/firmware-image.sh` creates the RAW A/B firmware components
 and SD card image from `board/ti/am625/layout/`.
 

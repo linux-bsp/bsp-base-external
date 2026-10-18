@@ -36,7 +36,7 @@ cp $BUILD_DIR/ti-k3-boot-firmware-*/ti-connectivity/* $TARGET_DIR/lib/firmware/t
 ln -snf /run/dropbear "$TARGET_DIR/etc/dropbear"
 
 # Remove paths used before BMC configuration was consolidated under
-# /etc/bmctool. Buildroot overlays do not remove deleted source files from an
+# /etc/libbmc. Buildroot overlays do not remove deleted source files from an
 # incremental target directory.
 rm -f \
 	"$TARGET_DIR/etc/edk/bmc.password" \
@@ -47,8 +47,8 @@ rm -f \
 # Credentials are local overlay inputs. Force safe permissions in the image
 # even when the developer's source file was created with a permissive umask.
 for password_file in \
-	"$TARGET_DIR/etc/bmctool/xfusion.password" \
-	"$TARGET_DIR/etc/bmctool/supermicro.password"
+	"$TARGET_DIR/etc/libbmc/xfusion.password" \
+	"$TARGET_DIR/etc/libbmc/supermicro.password"
 do
 	[ ! -f "$password_file" ] || chmod 0600 "$password_file"
 done
