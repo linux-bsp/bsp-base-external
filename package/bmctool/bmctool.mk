@@ -39,11 +39,16 @@ BMCTOOL_LEGACY_PUBLIC_HEADERS = \
 	bmctool_epdu.h bmctool_epdu_limits.h bmctool_epdu_config.h \
 	bmctool_epdu_mapping_config.h bmctool_csv.h bmctool_device_profiles.h \
 	bmctool_source_config.h bmctool_output.h bmctool_output_queue.h \
-	bmctool_text.h bmctool_clock.h bmctool_string.h
+	bmctool_text.h bmctool_clock.h bmctool_string.h \
+	connection/bmctool_connection.h device/bmctool_device.h \
+	device/bmctool_backoff.h collector/bmctool_collector.h \
+	management/bmctool_management.h inventory/bmctool_inventory.h
 
 define BMCTOOL_REMOVE_LEGACY_PUBLIC_HEADERS
 	$(RM) -f $(addprefix $(TARGET_DIR)/usr/include/bmctool/,$(BMCTOOL_LEGACY_PUBLIC_HEADERS)) \
 		$(addprefix $(STAGING_DIR)/usr/include/bmctool/,$(BMCTOOL_LEGACY_PUBLIC_HEADERS))
+	-rmdir $(addprefix $(TARGET_DIR)/usr/include/bmctool/,connection device collector management inventory) \
+		$(addprefix $(STAGING_DIR)/usr/include/bmctool/,connection device collector management inventory) 2>/dev/null
 endef
 BMCTOOL_POST_INSTALL_TARGET_HOOKS += BMCTOOL_REMOVE_LEGACY_PUBLIC_HEADERS
 
