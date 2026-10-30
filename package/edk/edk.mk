@@ -27,6 +27,10 @@ ifeq ($(BR2_PACKAGE_EDK_FW_FIT_SIGNATURE),y)
 EDK_DEPENDENCIES += uboot-tools
 endif
 
+ifeq ($(BR2_PACKAGE_EDK_WEB),y)
+EDK_DEPENDENCIES += cjson lighttpd
+endif
+
 # Local override builds must not sync generated build directories or stale
 # Kbuild products from the EDK workspace into Buildroot. Linux refuses external
 # modules when modules.order exists in the module source tree.
@@ -71,7 +75,8 @@ EDK_MAKE_OPTS = \
 
 EDK_CHECK_FEATURES = $(HOST_DIR)/bin/python3 $(@D)/scripts/check_buildroot.py \
     --build-dir "$(EDK_BUILD_OUTPUT)" \
-    --firmware "$(BR2_PACKAGE_EDK_FW)"
+    --firmware "$(BR2_PACKAGE_EDK_FW)" \
+    --web "$(BR2_PACKAGE_EDK_WEB)"
 
 # Configure using make (kernel-style interface)
 # This loads the defconfig and generates .config + autoconf.h

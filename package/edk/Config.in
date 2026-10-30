@@ -38,6 +38,16 @@ config BR2_PACKAGE_EDK_FW
 	  libedk_firmware.so. CONFIG_FWCTL may additionally enable the command-line
 	  adapter, but it does not own these implementation dependencies.
 
+config BR2_PACKAGE_EDK_WEB
+	bool "Enable pdebug web debugger dependencies"
+	depends on !BR2_STATIC_LIBS
+	select BR2_PACKAGE_CJSON
+	select BR2_PACKAGE_LIGHTTPD
+	help
+	  Select this when the EDK preset enables CONFIG_PDEBUG_WEB. Installs
+	  lighttpd and cJSON for the browser pdebug adapter. The product overlay
+	  supplies the listener, access-key initialization and startup policy.
+
 config BR2_PACKAGE_EDK_FW_FIT_SIGNATURE
 	bool "Install EDK firmware FIT signature verifier"
 	depends on BR2_PACKAGE_EDK_FW

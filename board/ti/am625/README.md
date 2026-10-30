@@ -18,6 +18,16 @@ The Redfish endpoint `192.168.10.201` is configured in
 (mode 0600), then set `[daemon] enabled = true` to start telemetry collection.
 Keep credentials out of the repository.
 
+The pdebug web debugger is enabled through `BR2_PACKAGE_EDK_WEB`, using lighttpd
+at port 8080. Open `http://192.168.10.211:8080/` and enter the board's runtime
+access key from `cat /run/pdebug-web/token`. The key changes after reboot unless
+a private root-owned mode-0600 `/etc/edk/pdebug-web.token` is supplied. The CGI
+executes the installed pdebug with bounded arguments/output/time and reads fixed
+log sources; it does not execute shell command lines. Configuration/startup is
+in `rootfs-overlay/etc/lighttpd/lighttpd.conf` and `etc/init.d/S50lighttpd`.
+Use this endpoint on the development network. The initial Power page targets
+`dc_power` and supports CH1/CH2; no output is enabled automatically.
+
 `bmc-test` reads its multi-device inventory from
 `rootfs-overlay/etc/libbmc/devices.conf`. The image currently contains xFusion
 and Supermicro profiles with independent Redfish/IPMI endpoints, usernames,
