@@ -1,4 +1,4 @@
-menu "LINUX_BSP external board options"
+menu "BSP base external board options"
 
 source "$BR2_EXTERNAL_LINUX_BSP_PATH/package/edk/Config.in"
 source "$BR2_EXTERNAL_LINUX_BSP_PATH/package/libbmc/Config.in"

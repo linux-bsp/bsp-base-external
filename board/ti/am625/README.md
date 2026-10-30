@@ -25,8 +25,9 @@ a private root-owned mode-0600 `/etc/edk/pdebug-web.token` is supplied. The CGI
 executes the installed pdebug with bounded arguments/output/time and reads fixed
 log sources; it does not execute shell command lines. Configuration/startup is
 in `rootfs-overlay/etc/lighttpd/lighttpd.conf` and `etc/init.d/S50lighttpd`.
-Use this endpoint on the development network. The initial Power page targets
-`dc_power` and supports CH1/CH2; no output is enabled automatically.
+Use this endpoint on the development network. Select a device from the actual
+PDM inventory to display MCU, LED, Satellite or Power controls. Selection does
+not execute peripheral commands; power outputs are never enabled automatically.
 
 `bmc-test` reads its multi-device inventory from
 `rootfs-overlay/etc/libbmc/devices.conf`. The image currently contains xFusion

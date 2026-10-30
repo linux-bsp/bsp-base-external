@@ -1,12 +1,16 @@
-# TI AM62x Buildroot External Tree
+# BSP Base External
 
-This external tree contains the Alientek AM62x board configuration, image
+This repository provides the reusable BSP base external tree.
+Its Buildroot identifier remains `LINUX_BSP`, so existing
+`BR2_EXTERNAL_LINUX_BSP_PATH` references remain valid.
+
+The external tree contains the Alientek AM62x board configuration, image
 layout, root filesystem files, and the EDK and libbmc packages.
 
 From the BSP workspace root:
 
 ```sh
-make -C buildroot BR2_EXTERNAL=../br2-external alientek_am62x_defconfig
+make -C buildroot BR2_EXTERNAL=../bsp-base-external alientek_am62x_defconfig
 make -C buildroot
 ```
 
