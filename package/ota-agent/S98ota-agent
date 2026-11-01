@@ -1,0 +1,38 @@
+#!/bin/sh
+
+[ -r /etc/default/ota-agent ] && . /etc/default/ota-agent
+[ -r /data/ota-agent.conf ] && . /data/ota-agent.conf
+PIDFILE=/var/run/ota-agent.pid
+
+case "$1" in
+    start)
+        [ "${OTA_ENABLED:-0}" = 1 ] || exit 0
+        [ -n "$OTA_SERVER" ] || { echo "ota-agent: set OTA_SERVER" >&2; exit 1; }
+        mkdir -p "$OTA_CACHE" || exit 1
+        start-stop-daemon -S -b -m -p "$PIDFILE" -x /usr/sbin/ota-agent -- \
+            --server "$OTA_SERVER" --cache "$OTA_CACHE" \
+            --product "$OTA_PRODUCT" --layout "$OTA_LAYOUT" \
+            --interval "${OTA_INTERVAL:-60}"
+        ;;
+    stop)
+        if ! start-stop-daemon -K -t -p "$PIDFILE" -x /usr/sbin/ota-agent >/dev/null 2>&1; then
+            rm -f "$PIDFILE"
+            exit 0
+        fi
+        start-stop-daemon -K -p "$PIDFILE" -x /usr/sbin/ota-agent || exit 1
+        attempts=0
+        while start-stop-daemon -K -t -p "$PIDFILE" -x /usr/sbin/ota-agent >/dev/null 2>&1; do
+            attempts=$((attempts + 1))
+            [ "$attempts" -le 10 ] || { echo "ota-agent: stop timed out" >&2; exit 1; }
+            sleep 1
+        done
+        rm -f "$PIDFILE"
+        ;;
+    restart)
+        "$0" stop && "$0" start
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart}" >&2
+        exit 2
+        ;;
+esac

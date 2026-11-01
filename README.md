@@ -44,3 +44,11 @@ version in a separate directory; do not overlay an existing installation.
 The original `make sdk` target is used without an additional install target.
 Linux 7.0 headers match this workspace's kernel; older target kernels need
 a separately configured SDK with suitable headers. This is not an i.MX6ULL SDK.
+
+## OTA publication and device downloads
+
+The C tools under `support/ota-server/` publish immutable firmware releases and
+let devices poll, download, and verify updates before installation with `fwctl`.
+See [the OTA guide](support/ota-server/README.md) for build, publication, device
+configuration, and test commands. The AM62x configuration includes `ota-agent`;
+its boot service is disabled until explicitly configured.
