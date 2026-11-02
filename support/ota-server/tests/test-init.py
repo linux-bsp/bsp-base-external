@@ -81,4 +81,31 @@ class InitScript(unittest.TestCase):
         self.mac.unlink();self.assertNotEqual(self.run_script().returncode,0)
         self.assertFalse(self.calls.exists())
 
+class BoardInitScripts(unittest.TestCase):
+    board=SOURCE.parents[2]/'board/ti/am625'
+
+    def test_all_service_shell_syntax(self):
+        files=list((self.board/'rootfs-overlay/etc/init.d').glob('*'))+[SOURCE]
+        for path in files:
+            if path.is_file() and path.read_bytes().startswith(b'#!/bin/sh'):
+                with self.subTest(script=path.name):
+                    r=subprocess.run([shutil.which('busybox'),'ash','-n',str(path)],capture_output=True,text=True)
+                    self.assertEqual(r.returncode,0,r.stderr)
+
+    def test_version_success_failure_and_stop(self):
+        source=(self.board/'rootfs-overlay/etc/init.d/S99fw-version').read_text()
+        with tempfile.TemporaryDirectory(prefix='version-init-') as tmp:
+            root=Path(tmp);calls=root/'calls';stub=root/'fwctl';script=root/'version'
+            stub.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$TEST_CALLS"\nexit "$TEST_EXIT"\n');stub.chmod(0o755)
+            script.write_text(source.replace('/etc/default/fwctl',str(root/'no-config')).replace('/usr/sbin/fwctl',str(stub)))
+            for action in ('start','restart','reload'):
+                for code in ('0','1'):
+                    env=dict(os.environ,TEST_CALLS=str(calls),TEST_EXIT=code,FWCTL_CONFIG='/test/firmware.conf')
+                    r=subprocess.run([shutil.which('busybox'),'ash',str(script),action],capture_output=True,text=True,env=env)
+                    self.assertEqual(r.returncode,0,r.stderr)
+                    self.assertEqual('[fwctl] [ERROR]' in r.stderr,code=='1')
+            self.assertEqual(calls.read_text().splitlines(),['--config /test/firmware.conf version']*6)
+            self.assertEqual(subprocess.run([shutil.which('busybox'),'ash',str(script),'stop']).returncode,0)
+            self.assertEqual(len(calls.read_text().splitlines()),6)
+
 if __name__=='__main__':unittest.main()

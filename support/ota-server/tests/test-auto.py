@@ -78,7 +78,8 @@ class AutomaticOTA(unittest.TestCase):
                 for dest in (log,console):
                     text=dest.read_text();self.assertRegex(text, r'Discovered firmware v1\.0\.1 / [0-9a-f]{8} \(')
                     self.assertNotRegex(text, r'v1\.0\.1 / [0-9a-f]{9}')
-                    self.assertIn('OTA / DOWNLOAD',text)
+                    self.assertIn('[fwctld] [INFO] Discovered firmware',text)
+                    self.assertNotIn('====',text)
                     self.assertIn('Downloading kernel.itb',text)
                     self.assertNotIn('Downloaded and SHA256-verified',text)
                 self.assertIsNone(proc.poll())
@@ -86,8 +87,8 @@ class AutomaticOTA(unittest.TestCase):
                 until(lambda:'FLASH_ERROR_DETAIL' in console.read_text())
                 for dest in (log,console):
                     text=dest.read_text();self.assertIn('Installing firmware',text)
-                    self.assertIn('OTA / installing',text)
-                    self.assertNotIn('OTA / success',text)
+                    self.assertIn(': installing (',text)
+                    self.assertNotIn(': success (',text)
                     self.assertIn('FLASH_WRITE_BEGIN',text);self.assertIn('FLASH_ERROR_DETAIL',text)
                     self.assertNotIn('rebooting now',text)
                 self.assertIsNone(proc.poll())

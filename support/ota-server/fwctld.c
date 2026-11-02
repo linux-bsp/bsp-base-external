@@ -17,18 +17,20 @@ static void stop_daemon(int sig)
     ota_stop = 1;
 }
 
-static int download(const char *url, const char *path, unsigned long long limit, int allow_absent)
+static int download(const char *url, const char *path, unsigned long long limit, int allow_absent, const char *device)
 {
-    char maximum[32], status[16];
+    char maximum[32], status[16], device_header[96];
+    snprintf(device_header, sizeof(device_header), "X-OTA-Device: %s", device ? device : "");
     snprintf(maximum, sizeof(maximum), "%llu", limit);
     char *args[] = {"curl", "--disable", "--silent", "--show-error",
         "--noproxy", "*", "--proto", "=http,https", "--connect-timeout", "10",
         "--max-time", "1800", "--speed-limit", "1024", "--speed-time", "30",
+        "--header", device ? device_header : "X-OTA-Device:",
         "--max-filesize", maximum, "--output", (char *)path, "--write-out", "%{http_code}", "--url", (char *)url, NULL};
     if (ota_run(args, status, sizeof(status)))
         return -1;
     if (allow_absent && (!strcmp(status, "404") || !strcmp(status, "204"))) return 1;
-    if (strcmp(status, "200")) { fwctld_log("HTTP %s while downloading %s", status, url); return -1; }
+    if (strcmp(status, "200")) { fwctld_error("HTTP %s while downloading %s", status, url); return -1; }
     int fd = open(path, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
     if (fd < 0)
         return -1;
@@ -50,24 +52,24 @@ static int poll_release(const char *server, const char *cache, const char *produ
     if (ota_path(temp, cache, ".download-XXXXXX") || !mkdtemp(temp))
         return -1;
     if (ota_path(path, temp, "manifest") || ota_path(url, server, "latest")) goto done;
-    int fetched = download(url, path, 2048, 1);
+    int fetched = download(url, path, 2048, 1, device);
     if (fetched == 1) {
         if (!waiting) fwctld_log("No active OTA publication; waiting");
         waiting = 1; rc = 1; goto done;
     }
     waiting = 0;
     if (fetched || ota_read(path, &r)) {
-        fwctld_log("Cannot fetch a valid publication manifest; check network/server");
+        fwctld_error("Cannot fetch a valid publication manifest; check network/server");
         goto done;
     }
     if (strcmp(r.product, product) || strcmp(r.layout, layout)) {
-        fwctld_log("OTA product/layout mismatch\n");
+        fwctld_error("OTA product/layout mismatch\n");
         goto done;
     }
-    if (fwctld_release_label(server, r.version, label)) { fwctld_log("Cannot fetch firmware tag/content identity"); goto done; }
+    if (fwctld_release_label(server, r.version, label)) { fwctld_error("Cannot fetch firmware tag/content identity"); goto done; }
     if (auto_install && !force) {
         int blocked = fwctld_retry_blocked(server, device, r.version);
-        if (blocked < 0) { fwctld_log("Cannot verify previous upgrade failures; automatic installation deferred"); goto done; }
+        if (blocked < 0) { fwctld_error("Cannot verify previous upgrade failures; automatic installation deferred"); goto done; }
         if (blocked) {
             if (last_blocked != r.version) fwctld_log("Firmware %s is quarantined globally; automatic retry blocked", label);
             last_blocked = r.version; rc = 1; goto done;
@@ -89,28 +91,27 @@ static int poll_release(const char *server, const char *cache, const char *produ
         goto done;
     if (!force && !access(current, F_OK)) {
         if (ota_read(current, &old)) {
-            fwctld_log("Invalid local current record; inspect cache\n");
+            fwctld_error("Invalid local current record; inspect cache\n");
             goto done;
         }
         if (strcmp(old.product, product) || strcmp(old.layout, layout)) {
-            fwctld_log("Cache belongs to a different product/layout\n");
+            fwctld_error("Cache belongs to a different product/layout\n");
             goto done;
         }
         if (r.version < old.version) {
-            fwctld_log("Refusing older publication %llu (cached %llu)\n", r.version, old.version);
+            fwctld_error("Refusing older publication %llu (cached %llu)\n", r.version, old.version);
             goto done;
         }
         if (r.version == old.version) {
             for (int i = 0; i < 3; i++)
                 if (strcmp(r.hash[i], old.hash[i]) || r.size[i] != old.size[i]) {
-                    fwctld_log("Published version changed unexpectedly\n");
+                    fwctld_error("Published version changed unexpectedly\n");
                     goto done;
                 }
             unchanged = 1;
         }
     }
     if (!unchanged) {
-        fwctld_log_stage("DOWNLOAD");
         fwctld_log("Discovered firmware %s (%s/%s, publication #%llu); preparing download", label, r.product, r.layout, r.version);
     }
     snprintf(name, sizeof(name), "%llu", r.version);
@@ -125,7 +126,7 @@ static int poll_release(const char *server, const char *cache, const char *produ
     }
     if (!access(dest, F_OK)) {
         if (ota_verify(dest, &r)) {
-            fwctld_log("Cached files damaged; remove affected version directory and retry\n");
+            fwctld_error("Cached files damaged; remove affected version directory and retry\n");
             goto done;
         }
     } else {
@@ -134,8 +135,8 @@ static int poll_release(const char *server, const char *cache, const char *produ
             snprintf(relative, sizeof(relative), "releases/%llu/%s", r.version, ota_files[i]);
             fwctld_log("Downloading %s (%llu bytes), firmware %s", ota_files[i], r.size[i], label);
             if (ota_path(url, server, relative) || ota_path(path, temp, ota_files[i]) ||
-                download(url, path, r.size[i], 0)) {
-                fwctld_log("Download failed: %s, firmware %s", ota_files[i], label);
+                download(url, path, r.size[i], 0, device)) {
+                fwctld_error("Download failed: %s, firmware %s", ota_files[i], label);
                 if (auto_install) (void)fwctld_report_problem(server, device, product, layout, r.version, "device-error", "download-failed");
                 goto done;
             }

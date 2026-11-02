@@ -87,11 +87,41 @@ static int pax_metadata(char *data, size_t size)
     return 0;
 }
 
+/* Require a complete gzip member, including CRC/length trailer. Some gzread
+ * implementations treat a truncated trailer as EOF without a close error. */
+static int gzip_complete(const char *path)
+{
+    FILE *input = fopen(path, "rb");
+    if (!input) return -1;
+    z_stream stream = {0};
+    if (inflateInit2(&stream, 15 + 16) != Z_OK) { fclose(input); return -1; }
+    unsigned char compressed[65536], plain[65536];
+    int rc = -1;
+    size_t n;
+    while ((n = fread(compressed, 1, sizeof(compressed), input)) > 0) {
+        stream.next_in = compressed; stream.avail_in = (uInt)n;
+        do {
+            stream.next_out = plain; stream.avail_out = sizeof(plain);
+            int result = inflate(&stream, Z_NO_FLUSH);
+            if (stream.total_out > OTA_UPLOAD_MAX + 1048576) goto done;
+            if (result == Z_STREAM_END) {
+                if (!stream.avail_in && fgetc(input) == EOF && !ferror(input)) rc = 0;
+                goto done;
+            }
+            if (result == Z_BUF_ERROR && !stream.avail_in) break;
+            if (result != Z_OK) goto done;
+        } while (stream.avail_in || !stream.avail_out);
+    }
+done:
+    inflateEnd(&stream); fclose(input); return rc;
+}
+
 /* A deliberately restricted tar reader: fixed filenames, regular files only.
  * No archive-supplied path is ever passed to open(). Format offsets: <tar.h>.
  */
 static int unpack(const char *archive, const char *directory)
 {
+    if (gzip_complete(archive)) return -1;
     gzFile file = gzopen(archive, "rb");
     if (!file)
         return -1;
@@ -194,8 +224,12 @@ static int unpack(const char *archive, const char *directory)
         int n = gzread(file, buffer, sizeof(buffer));
         if (n < 0)
             goto done;
-        if (!n)
+        if (!n) {
+            int error;
+            (void)gzerror(file, &error);
+            if (error != Z_OK && error != Z_STREAM_END) goto done;
             break;
+        }
         padding += (unsigned)n;
         if (padding > 1048576)
             goto done;
@@ -260,13 +294,10 @@ int ota_draft_finish(const char *root, const char *temp, char id[32])
     if (ota_path(drafts, root, "drafts") || ota_path(target, drafts, id) || !access(target, F_OK) ||
         rename(temp, target) || ota_sync_dir(drafts))
         return -1;
-    return 0;
+    struct ota_catalog_identity identity;
+    return ota_catalog_get(root, target, &identity);
 }
 
-static void version_string(unsigned long n, char out[40])
-{
-    snprintf(out, 40, "%lu.%lu.%lu", n >> 16, (n >> 8) & 255, n & 255);
-}
 
 static unsigned long long published_number(const char *directory)
 {
@@ -294,7 +325,7 @@ static int number_id(const char *name, unsigned long long *number)
     return !strcmp(name, canonical);
 }
 
-static int list_entries(FILE *f, const char *root, int draft)
+static int list_entries(FILE *f, const char *root, int draft, unsigned long long active)
 {
     char base[OTA_PATH], directory[OTA_PATH], path[OTA_PATH];
     if (ota_path(base, root, draft ? "drafts" : "releases"))
@@ -307,7 +338,7 @@ static int list_entries(FILE *f, const char *root, int draft)
     while ((entry = readdir(dir))) {
         struct release r;
         unsigned long long number = 0;
-        unsigned long fit_version = 0;
+        struct ota_catalog_identity identity;
         if ((draft && !draft_id(entry->d_name)) || (!draft && !number_id(entry->d_name, &number)))
             continue;
         if (ota_path(directory, base, entry->d_name) || !regular_directory(directory) ||
@@ -317,21 +348,22 @@ static int list_entries(FILE *f, const char *root, int draft)
             closedir(dir);
             return -1;
         }
-        (void)ota_fit_version(directory, &fit_version);
-        char version[40], content_hash[65] = ""; unsigned long content_version;
-        (void)ota_firmware_identity(directory, content_hash, &content_version);
-        version_string(fit_version, version);
+        if (ota_catalog_get(root, directory, &identity)) { closedir(dir); return -1; }
         struct stat st;
         if (stat(directory, &st)) {
             closedir(dir);
             return -1;
         }
+        unsigned long long published = draft ? published_number(directory) : number;
+        int blocked = ota_quarantine_hashes_blocked(root, identity.kernel, identity.rootfs);
+        if (blocked < 0) { closedir(dir); return -1; }
         if (count > 1)
             fputc(',', f);
         fprintf(f, "{\"id\":\"%s\",\"product\":\"%s\",\"layout\":\"%s\","
-            "\"firmware_version\":\"%s\",\"publication\":%llu,\"bytes\":%llu,\"created\":%lld,\"quarantined\":%s,\"tag\":\"v%s\",\"firmware_id\":\"%s\"}",
-            entry->d_name, r.product, r.layout, version, draft ? published_number(directory) : number,
-            r.size[0] + r.size[1] + r.size[2], (long long)st.st_mtime, ota_quarantine_blocked(root, directory) ? "true" : "false", version, content_hash);
+            "\"firmware_version\":\"%s\",\"publication\":%llu,\"bytes\":%llu,\"created\":%lld,\"quarantined\":%s,\"tag\":\"v%s\",\"firmware_id\":\"%s\",\"uploaded_at\":%lld,\"valid\":%s,\"published\":%s}",
+            entry->d_name, r.product, r.layout, identity.tag + 1, published,
+            r.size[0] + r.size[1] + r.size[2], (long long)st.st_mtime, blocked ? "true" : "false", identity.tag + 1, identity.hash, identity.uploaded_at,
+            blocked ? "false" : "true", published && published == active && !blocked ? "true" : "false");
     }
     closedir(dir);
     return 0;
@@ -355,13 +387,15 @@ int ota_admin_state(const char *root, char **json)
     if (!f)
         return -1;
     fprintf(f, "{\"latest\":%llu,\"drafts\":[", number);
-    int failed = list_entries(f, root, 1);
+    int failed = list_entries(f, root, 1, number);
     fprintf(f, "],\"releases\":[");
-    failed |= list_entries(f, root, 0);
+    failed |= list_entries(f, root, 0, number);
     fprintf(f, "],\"devices\":[");
     failed |= ota_devices_json(root, f);
     fprintf(f, "],\"device_history\":[");
     failed |= ota_history_json(root, f);
+    fprintf(f, "],\"download_stats\":[");
+    failed |= ota_catalog_downloads_json(root, f);
     fprintf(f, "],\"release_stats\":[");
     failed |= ota_history_summary(root, f);
     fprintf(f, "],\"audit_events\":[");
@@ -391,9 +425,10 @@ int ota_admin_publish(const char *root, const char *id, unsigned long long *numb
     int blocked = ota_quarantine_blocked(root, source);
     if (blocked) return blocked > 0 ? 409 : 503;
     unsigned long long previous = published_number(source);
-    if (previous) {
+    if (previous && !ota_path(latest_path, root, "latest") &&
+        !ota_read(latest_path, &latest) && latest.version == previous) {
         *number = previous;
-        return 200; /* Repeated button clicks are idempotent. */
+        return 200; /* Repeated clicks on the active publication are idempotent. */
     }
     *number = 1;
     if (ota_path(latest_path, root, "latest") || ota_path(releases, root, "releases"))
@@ -437,4 +472,36 @@ int ota_admin_publish(const char *root, const char *id, unsigned long long *numb
         }
     }
     return 200;
+}
+
+/* Explicit management export, including quarantined firmware for audit. Device
+ * endpoints retain their quarantine checks; manual export never counts as OTA. */
+int ota_admin_bundle(const char *root, const char *kind, const char *id,
+                     char filename[128], unsigned long long *size)
+{
+    char base[OTA_PATH], directory[OTA_PATH], temporary[] = "/tmp/ota-export-XXXXXX";
+    char archive[OTA_PATH], ignored[1024]; unsigned long long number;
+    if ((!strcmp(kind, "draft") && !draft_id(id)) ||
+        (!strcmp(kind, "release") && !number_id(id, &number)) ||
+        (strcmp(kind, "draft") && strcmp(kind, "release"))) return -ENOENT;
+    if (ota_path(base, root, !strcmp(kind, "draft") ? "drafts" : "releases") ||
+        ota_path(directory, base, id) || !regular_directory(directory)) return -ENOENT;
+    struct release release; unsigned long version; struct ota_catalog_identity identity;
+    if (ota_inspect(directory, &release, &version) || ota_catalog_get(root, directory, &identity)) return -EIO;
+    if (!mkdtemp(temporary)) return -EIO;
+    int fd = -EIO;
+    if (ota_path(archive, temporary, "firmware.tar.gz")) { rmdir(temporary); return -EIO; }
+    char *args[] = {"tar", "--format=ustar", "-czf", archive, "-C", directory,
+        "release.itb", "kernel.itb", "rootfs.itb", NULL};
+    if (!ota_run(args, ignored, sizeof(ignored))) {
+        struct stat st;
+        fd = open(archive, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+        if (fd >= 0 && (fstat(fd, &st) || !S_ISREG(st.st_mode) || st.st_size <= 0)) { close(fd); fd = -EIO; }
+        if (fd >= 0) {
+            *size = (unsigned long long)st.st_size;
+            snprintf(filename, 128, "firmware-%s-%.8s.tar.gz", identity.tag, identity.hash);
+        } else fd = -EIO;
+    }
+    unlink(archive); rmdir(temporary);
+    return fd;
 }

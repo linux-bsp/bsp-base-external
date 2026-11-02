@@ -64,12 +64,11 @@ done:
 }
 
 /* Content identity excludes publication number; labels are derived from FIT version. */
-int ota_firmware_identity(const char *directory, char hash[65], unsigned long *version)
+int ota_content_identity(const char *body, char hash[65], unsigned long *version)
 {
-    char body[512], kernel[65], rootfs[65], extra, canonical[256];
+    char kernel[65], rootfs[65], extra, canonical[256];
     unsigned long long publication, sizes[2]; unsigned value;
-    if (ota_image_identity(directory, 1, body, sizeof(body)) ||
-        sscanf(body, "BSPOTAIMAGE1 %llu %u %llu %64s %llu %64s %c", &publication, &value,
+    if (sscanf(body, "BSPOTAIMAGE1 %llu %u %llu %64s %llu %64s %c", &publication, &value,
             &sizes[0], kernel, &sizes[1], rootfs, &extra) != 6) return -1;
     int count = snprintf(canonical, sizeof(canonical), "BSPFWCONTENT1\nkernel %llu %s\nrootfs %llu %s\n",
         sizes[0], kernel, sizes[1], rootfs);
@@ -81,4 +80,11 @@ int ota_firmware_identity(const char *directory, char hash[65], unsigned long *v
     unsigned long long bytes;
     if (!rc) rc = ota_hash(temporary, hash, &bytes);
     unlink(temporary); if (!rc) *version = value; return rc;
+}
+
+int ota_firmware_identity(const char *directory, char hash[65], unsigned long *version)
+{
+    char body[512];
+    if (ota_image_identity(directory, 1, body, sizeof(body))) return -1;
+    return ota_content_identity(body, hash, version);
 }

@@ -142,6 +142,11 @@ int ota_publish(int argc, char **argv)
     if (ota_sync_dir(temp) ||
         rename(temp, target) || ota_sync_dir(releases))
         goto cleanup;
+    struct ota_catalog_identity identity;
+    if (ota_catalog_get(root, target, &identity)) {
+        fprintf(stderr, "Cannot persist firmware identity; latest unchanged\n");
+        goto done;
+    }
     snprintf(name, sizeof(name), ".latest-%ld", (long)getpid());
     if (ota_path(to, root, name) || ota_write(to, &r) || rename(to, latest) || ota_sync_dir(root)) {
         fprintf(stderr, "Snapshot retained; latest publication failed\n");

@@ -23,7 +23,7 @@ static int snapshot(struct fw_snapshot *s)
         &s->version[0], &s->good[0], &s->state[0], &s->version[1], &s->good[1], &s->state[1], &extra) != 9 ||
         s->booted > 1 || s->active > 1 || (s->pending > 1 && s->pending != 255) ||
         s->good[0] > 1 || s->good[1] > 1 || s->state[0] > 5 || s->state[1] > 5) {
-        fwctld_log("Cannot read valid local firmware status (fwctl ota-status)");
+        fwctld_error("Cannot read valid local firmware status (fwctl ota-status)");
         return -1;
     }
     return 0;
@@ -89,7 +89,7 @@ int fwctld_image_matches(const char *server, unsigned long long publication)
     }
     char *args[] = {"fwctl", "ota-check", v, lengths[0], hash[0], lengths[1], hash[1], NULL};
     if (ota_run(args, text, sizeof(text))) {
-        fwctld_log("Cannot compare installed firmware; use explicit force recovery if storage is unreadable");
+        fwctld_error("Cannot compare installed firmware; use explicit force recovery if storage is unreadable");
         return -1;
     }
     if (!strcmp(text, "FWCHECK1 match\n")) return 1;
@@ -103,13 +103,13 @@ static int read_report(const char *server, const char *device, const char *produ
     char relative[128], url[OTA_PATH], text[OTA_REPORT_SIZE];
     snprintf(relative, sizeof(relative), "api/devices/%s", device);
     if (ota_path(url, server, relative) || get(url, text, sizeof(text))) {
-        fwctld_log("Cannot query device transaction from OTA server; network/HTTP request failed");
+        fwctld_error("Cannot query device transaction from OTA server; network/HTTP request failed");
         return -1;
     }
     if (!*text) { memset(r, 0, sizeof(*r)); return 0; }
     if (ota_report_parse(text, r) || strcmp(r->device, device) ||
         strcmp(r->product, product) || strcmp(r->layout, layout)) {
-        fwctld_log("Invalid server transaction or mismatched device/product/layout");
+        fwctld_error("Invalid server transaction or mismatched device/product/layout");
         return -1;
     }
     return 0;
@@ -136,7 +136,6 @@ static int report(const char *server, struct ota_report *r, const char *phase, u
     char label[128];
     if (fwctld_release_label(server, r->publication, label))
         snprintf(label, sizeof(label), "v%u.%u.%u / identity-unavailable", r->version >> 16, (r->version >> 8) & 255, r->version & 255);
-    fwctld_log_stage(phase);
     fwctld_log("OTA firmware %s: %s (running=v%u.%u.%u, publication #%llu)",
         label, phase, running >> 16, (running >> 8) & 255, running & 255, r->publication);
     return 0;

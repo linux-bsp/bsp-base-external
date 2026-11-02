@@ -55,3 +55,17 @@ done
 
 # S10pdm owns CAN-dependent PDM lifecycle. Clean the obsolete incremental overlay.
 rm -f "$TARGET_DIR/etc/modules-load.d/pdm.conf"
+
+# Reject malformed service scripts before creating any rootfs image.
+for init_script in "$TARGET_DIR"/etc/init.d/*; do
+    [ -f "$init_script" ] || continue
+    IFS= read -r first_line < "$init_script" || continue
+    case "$first_line" in
+        '#!/bin/sh'*)
+            sh -n "$init_script" || {
+                echo "Invalid init script: $init_script" >&2
+                exit 1
+            }
+            ;;
+    esac
+done

@@ -19,8 +19,7 @@ wait_until_stable()
 	while [ "$count" -lt "$checks" ]; do
 		[ "$interval" -eq 0 ] || sleep "$interval"
 		if ! health_check; then
-			echo "fwctl: ================ HEALTH / FAILED ================" >&2
-			echo "fwctl: health check failed; deployment remains pending" >&2
+			echo "[fwctl] [ERROR] health check failed; deployment remains pending" >&2
 			return 1
 		fi
 		count=$((count + 1))
@@ -65,20 +64,17 @@ mark_good_worker()
 
 	wait_until_stable || return 0
 	if deployment_is_confirmed "$deployment"; then
-		echo "fwctl: deployment $deployment is already confirmed"
+		echo "[fwctl] [INFO] deployment $deployment is already confirmed"
 		return 0
 	fi
 	if /usr/sbin/fwctl \
 		--config "${FWCTL_CONFIG:-/etc/edk/firmware.conf}" \
 		mark-good; then
-		echo "fwctl: ================ HEALTH / CONFIRMED ================"
-		echo "fwctl: current deployment marked good"
-		/usr/sbin/fwctl --config "${FWCTL_CONFIG:-/etc/edk/firmware.conf}" version
-		echo "fwctl: [CONFIRMED] Local boot health passed; OTA result reporting is handled by fwctld"
+		echo "[fwctl] [INFO] current deployment marked good"
 		return 0
 	fi
 
-	echo "fwctl: failed to confirm current deployment" >&2
+	echo "[fwctl] [ERROR] failed to confirm current deployment" >&2
 	record_mark_good_failure
 	return 1
 }
@@ -88,7 +84,7 @@ start_worker()
 	deployment=$1
 
 	if worker_running; then
-		echo "fwctl: deployment health monitoring is already running"
+		echo "[fwctl] [INFO] deployment health monitoring is already running"
 		return 0
 	fi
 	rm -f "$PIDFILE"
@@ -97,17 +93,16 @@ start_worker()
 	worker_pid=$!
 	if ! printf '%s\n' "$worker_pid" > "$PIDFILE"; then
 		kill "$worker_pid" 2>/dev/null
-		echo "fwctl: failed to create background worker pid file" >&2
+		echo "[fwctl] [ERROR] failed to create background worker pid file" >&2
 		return 1
 	fi
 	if ! kill -0 "$worker_pid" 2>/dev/null; then
 		rm -f "$PIDFILE"
-		echo "fwctl: failed to start deployment health monitoring" >&2
+		echo "[fwctl] [ERROR] failed to start deployment health monitoring" >&2
 		return 1
 	fi
 
-	echo "fwctl: ================ HEALTH / OBSERVING ================"
-	echo "fwctl: deployment $deployment health monitoring started in background"
+	echo "[fwctl] [INFO] deployment $deployment health monitoring started in background"
 	return 0
 }
 
@@ -126,7 +121,7 @@ case "$1" in
 		deployment=$(sed -n 's/.*fw\.deployment=\([01]\).*/\1/p' /proc/cmdline)
 		[ -n "$deployment" ] || exit 0
 		if deployment_is_confirmed "$deployment"; then
-			echo "fwctl: deployment $deployment is already confirmed"
+			echo "[fwctl] [INFO] deployment $deployment is already confirmed"
 			exit 0
 		fi
 		start_worker "$deployment"

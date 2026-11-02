@@ -24,16 +24,27 @@ static int identity_key(const char *directory, char key[130], char kernel[65], c
             &sizes[0], kernel, &sizes[1], rootfs, &extra) != 6) return -1;
     snprintf(key, 130, "%s-%s", kernel, rootfs); return 0;
 }
-int ota_quarantine_blocked(const char *root, const char *directory)
+int ota_quarantine_hashes_blocked(const char *root, const char *kernel, const char *rootfs)
 {
-    char key[130], kernel[65], rootfs[65], base[OTA_PATH], path[OTA_PATH]; struct stat st;
+    char key[130], base[OTA_PATH], path[OTA_PATH]; struct stat st;
+    if (strlen(kernel) != 64 || strspn(kernel, "0123456789abcdef") != 64 ||
+        strlen(rootfs) != 64 || strspn(rootfs, "0123456789abcdef") != 64) return -1;
+    snprintf(key, sizeof(key), "%s-%s", kernel, rootfs);
     if (ota_path(base, root, "quarantine")) return -1;
     if (lstat(base, &st)) return errno == ENOENT ? 0 : -1;
-    if (!S_ISDIR(st.st_mode) || identity_key(directory, key, kernel, rootfs) ||
-        ota_path(path, base, key)) return -1;
+    if (!S_ISDIR(st.st_mode) || ota_path(path, base, key)) return -1;
     if (lstat(path, &st)) return errno == ENOENT ? 0 : -1;
     return S_ISREG(st.st_mode) ? 1 : -1;
 }
+int ota_quarantine_blocked(const char *root, const char *directory)
+{
+    char key[130], kernel[65], rootfs[65], base[OTA_PATH]; struct stat st;
+    if (ota_path(base, root, "quarantine")) return -1;
+    if (lstat(base, &st)) return errno == ENOENT ? 0 : -1;
+    if (!S_ISDIR(st.st_mode) || identity_key(directory, key, kernel, rootfs)) return -1;
+    return ota_quarantine_hashes_blocked(root, kernel, rootfs);
+}
+
 static int write_event(const char *directory, const char *name, const struct audit_event *e)
 {
     char path[OTA_PATH], temporary[OTA_PATH], text[OTA_REPORT_SIZE];

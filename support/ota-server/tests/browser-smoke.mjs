@@ -6,7 +6,8 @@ import {mkdtemp, readFile, writeFile, mkdir, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join, resolve} from 'node:path';
 
-const [url, bundle, outputDir] = process.argv.slice(2);
+const [inputUrl, bundle, outputDir] = process.argv.slice(2);
+const url=(inputUrl||'').replace(/\/+$/,'');
 assert(url && bundle && outputDir && process.env.CHROMIUM_BIN,
     'Provide URL, BUNDLE, OUTPUT_DIR and CHROMIUM_BIN');
 await mkdir(outputDir, {recursive: true});
@@ -86,7 +87,8 @@ try {
     assert.equal(uploaded.latest,before.latest,'Upload must not publish');
     const draft=uploaded.drafts.find(d=>!before.drafts.some(old=>old.id===d.id));
     assert(draft && !draft.publication,'New draft should be unpublished');
-    assert.equal(draft.firmware_version,'1.0.1');
+    assert(draft.tag && draft.firmware_id);
+    const expectedTag=draft.tag;
     async function screenshot(name){
         const {data}=await rpc('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});
         await writeFile(join(outputDir,name),Buffer.from(data,'base64'));
@@ -98,17 +100,34 @@ try {
         const state=await (await fetch(url+'/api/state')).json();
         return state.latest>before.latest;
     },'latest publication');
-    await until(()=>evaluate("document.querySelector('#current-version').textContent==='1.0.1' && !document.querySelector('[data-publish]')"),'published UI');
+    await until(()=>evaluate(`document.querySelector('#current-version').textContent===${JSON.stringify(expectedTag)} && !document.querySelector('[data-publish]')`),'published UI');
     const after=await (await fetch(url+'/api/state')).json();
+    assert(await evaluate("document.querySelector('.workspace-left').getBoundingClientRect().right < document.querySelector('.workspace-right').getBoundingClientRect().left"),'Desktop columns');
+    for(const tab of ['history','releases','audit','manage']){
+        await evaluate(`document.querySelector('#tab-${tab}').click()`);
+        assert(await evaluate(`!document.querySelector('#panel-${tab}').hidden && document.querySelectorAll('[role=tabpanel]:not([hidden])').length===1`),'Tab '+tab);
+    }
+    assert(await evaluate("document.querySelector('#drafts a.download').href.includes('/api/download/draft/')"));
+    assert(await evaluate("document.querySelector('#releases a.download').href.includes('/api/download/release/')"));
     await screenshot('published-desktop.png');
     await rpc('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
     await pause(150);
     assert(await evaluate('document.documentElement.scrollWidth<=window.innerWidth+1'),'Mobile page overflows');
     await screenshot('published-mobile.png');
+    await rpc('Page.navigate',{url:url+'/firmware?kind=release&id='+after.latest});
+    await until(()=>evaluate("document.querySelector('#firmware-detail')?.textContent.includes('设备下载次数')"),'firmware detail');
+    const detail=await evaluate("document.querySelector('#firmware-detail').textContent");
+    for(const field of ['上传时间','版本号','更新成功次数','更新失败次数','是否有效',expectedTag,draft.firmware_id]) assert(detail.includes(field),field);
+    assert(await evaluate("document.querySelector('#overview').hidden"));
+    assert(await evaluate("document.querySelector('#firmware-detail a.download').href.includes('/api/download/release/')"));
+    assert(await evaluate('document.documentElement.scrollWidth<=window.innerWidth+1'),'Detail page overflows');
+    await screenshot('firmware-detail-mobile.png');
+    await rpc('Emulation.setDeviceMetricsOverride',{width:1280,height:1000,deviceScaleFactor:1,mobile:false});
+    await screenshot('firmware-detail-desktop.png');
     assert.equal(errors.length,0,JSON.stringify(errors));
     await writeFile(join(outputDir,'browser-result.json'),JSON.stringify({
         uploadCreatedDraft:true,uploadDidNotPublish:true,deviceResultsRendered:true,publication:after.latest,
-        firmwareVersion:'1.0.1',mobileNoOverflow:true,javascriptErrors:errors,
+        firmwareVersion:expectedTag,detailsVerified:true,tabsVerified:true,downloadLinksVerified:true,mobileNoOverflow:true,javascriptErrors:errors,
     },null,2)+'\n');
     console.log('PASS: Chromium file upload -> unpublished draft -> publish; desktop/mobile UI and JS verified');
 } finally {

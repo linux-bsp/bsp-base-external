@@ -28,7 +28,7 @@ struct settings {
     char server[256], product[64], layout[64], interface[32], root[2][128];
 };
 static int watchdog_fd = -1;
-static void log_message(const char *s) { printf("fw-init: %s\n", s); fflush(stdout); }
+static void log_message(const char *s) { printf("[fw-init] [INFO] %s\n", s); fflush(stdout); }
 
 static int property(const char *dir, const char *name, void *data, size_t size)
 {
@@ -235,8 +235,7 @@ static void try_fallback(void)
 }
 static void halt_recovery(const char *why)
 {
-    log_message("================ RECOVERY / BOOT STOPPED ================");
-    log_message(why);
+    fprintf(stderr, "[fw-init] [ERROR] %s\n", why);
     log_message("automatic boot stopped; serial recovery shell available (exit to restart shell)");
     for (;;) {
         char *shell[]={"/bin/sh",NULL};
@@ -255,8 +254,7 @@ static int handoff(void)
         char dest[64]; snprintf(dest, sizeof(dest), "/newroot%s", mounts[i]);
         if (mount(mounts[i], dest, NULL, MS_MOVE, NULL)) return -1;
     }
-    log_message("[PASS] rootfs verification complete; boot health check still pending");
-    log_message("================ SWITCH_ROOT / HANDOFF ================");
+    log_message("rootfs verification complete; boot health check still pending");
     log_message("watchdog remains armed; system_manager will resume servicing after switch_root");
     log_message("switch_root: starting verified rootfs /sbin/init");
     /* CLOEXEC closes the watchdog fd. nowayout keeps it armed until the normal
@@ -284,7 +282,6 @@ int main(int argc, char **argv)
         halt_recovery("cannot mount recovery runtime filesystems");
     int console = open("/dev/console", O_RDWR);
     if (console >= 0) { dup2(console,0); dup2(console,1); dup2(console,2); if (console>2) close(console); }
-    log_message("================ INITRAMFS / RECOVERY ================");
     log_message("independent initramfs recovery environment started");
     mkdir("/run/network",0755); mkdir("/run/lock",0755);
     watchdog_fd = open("/dev/watchdog0", O_WRONLY|O_CLOEXEC);
@@ -308,7 +305,7 @@ int main(int argc, char **argv)
     char *identity_command[] = {"/usr/sbin/fwctl", "identity", "initramfs", NULL};
     if (!run(identity_command, identity_text, sizeof(identity_text))) {
         identity_text[strcspn(identity_text, "\r\n")] = 0;
-        log_message(identity_text);
+        puts(identity_text); fflush(stdout);
     }
     else log_message("firmware identity unavailable or inconsistent; inspect boot metadata");
     int fallback_attempted=0, network=0;

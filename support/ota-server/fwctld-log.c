@@ -18,36 +18,50 @@ void fwctld_log_init(const char *console)
     if (console && *console) {
         console_fd = open(console, O_WRONLY | O_APPEND | O_NONBLOCK | O_NOCTTY | O_CLOEXEC);
         if (console_fd < 0)
-            fprintf(stderr, "fwctld: cannot open console %s: %s; file logging continues\n",
+            fprintf(stderr, "[fwctld] [WARN] cannot open console %s: %s; file logging continues\n",
                 console, strerror(errno));
     }
 }
 
-void fwctld_log(const char *format, ...)
+static void emit(const char *message)
 {
-    char message[2048];
-    strcpy(message, "fwctld: ");
-    size_t prefix = strlen(message);
-    va_list args;
-    va_start(args, format);
-    vsnprintf(message + prefix, sizeof(message) - prefix - 1, format, args);
-    va_end(args);
     size_t n = strlen(message);
-    if (!n || message[n - 1] != '\n') message[n++] = '\n';
-    message[n] = 0;
     fputs(message, stdout);
     fflush(stdout);
-    /* A blocked/disconnected serial console must not stall an update. */
+    /* A blocked/disconnected console must not stall an update. */
     if (console_fd >= 0) {
         ssize_t sent;
         do { sent = write(console_fd, message, n); } while (sent < 0 && errno == EINTR);
-        (void)sent; /* Best effort; the complete message stays in the log file. */
+        (void)sent;
     }
 }
-
-void fwctld_log_stage(const char *stage)
+static void log_format(const char *level, const char *format, va_list args)
 {
-    fwctld_log("================ OTA / %s ================", stage);
+    char message[2048];
+    size_t prefix = (size_t)snprintf(message, sizeof(message), "[fwctld] [%s] ", level);
+    vsnprintf(message + prefix, sizeof(message) - prefix - 1, format, args);
+    size_t n = strlen(message);
+    if (!n || message[n - 1] != '\n') message[n++] = '\n';
+    message[n] = 0;
+    emit(message);
+}
+void fwctld_log(const char *format, ...)
+{
+    va_list args; va_start(args, format);
+    log_format("INFO", format, args); va_end(args);
+}
+void fwctld_error(const char *format, ...)
+{
+    va_list args; va_start(args, format);
+    log_format("ERROR", format, args); va_end(args);
+}
+static void child_line(char *line, size_t size)
+{
+    line[size] = 0;
+    if (!strncmp(line, "[fwctl] [", 9)) {
+        line[size] = '\n'; line[size + 1] = 0;
+        emit(line);
+    } else if (size) fwctld_log("%s", line);
 }
 
 /* Drain fwctl stdout AND stderr while it runs, instead of buffering until exit. */
@@ -65,7 +79,8 @@ int fwctld_run_logged(char *const argv[])
     }
     close(pipes[1]);
     if (pid < 0) { close(pipes[0]); return -1; }
-    char buffer[1024];
+    char buffer[1024], line[2048];
+    size_t used = 0;
     for (;;) {
         ssize_t n = read(pipes[0], buffer, sizeof(buffer) - 1);
         if (n < 0 && errno == EINTR) {
@@ -73,9 +88,15 @@ int fwctld_run_logged(char *const argv[])
             continue;
         }
         if (n <= 0) { failed = n < 0; break; }
-        buffer[n] = 0;
-        fwctld_log("%s", buffer);
+        for (ssize_t i = 0; i < n; i++) {
+            if (buffer[i] == '\n') { child_line(line, used); used = 0; }
+            else {
+                line[used++] = buffer[i];
+                if (used == sizeof(line) - 2) { child_line(line, used); used = 0; }
+            }
+        }
     }
+    if (used) child_line(line, used);
     close(pipes[0]);
     while (waitpid(pid, &status, 0) < 0) {
         if (errno != EINTR) return -1;

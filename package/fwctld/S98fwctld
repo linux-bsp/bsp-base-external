@@ -20,7 +20,7 @@ device_id_from_mac()
 case "$1" in
     start)
         [ "${FWCTLD_ENABLED:-0}" = 1 ] || exit 0
-        [ -n "$FWCTLD_SERVER" ] || { echo "fwctld: set FWCTLD_SERVER" >&2; exit 1; }
+        [ -n "$FWCTLD_SERVER" ] || { echo "[fwctld] [ERROR] set FWCTLD_SERVER" >&2; exit 1; }
         mkdir -p "$FWCTLD_CACHE" || exit 1
         set --
         FWCTLD_CONSOLE=${FWCTLD_CONSOLE-/dev/console}
@@ -31,11 +31,11 @@ case "$1" in
         if [ "${FWCTLD_AUTO_INSTALL:-0}" = 1 ]; then
             if [ -z "$FWCTLD_DEVICE_ID" ] && [ -r /sys/class/net/eth0/address ]; then
                 FWCTLD_DEVICE_ID=$(device_id_from_mac) || {
-                    echo "fwctld: invalid eth0 MAC; set FWCTLD_DEVICE_ID" >&2
+                    echo "[fwctld] [ERROR] invalid eth0 MAC; set FWCTLD_DEVICE_ID" >&2
                     exit 1
                 }
             fi
-            [ -n "$FWCTLD_DEVICE_ID" ] || { echo "fwctld: set FWCTLD_DEVICE_ID" >&2; exit 1; }
+            [ -n "$FWCTLD_DEVICE_ID" ] || { echo "[fwctld] [ERROR] set FWCTLD_DEVICE_ID" >&2; exit 1; }
             set -- "$@" --auto-install --device "$FWCTLD_DEVICE_ID"
         fi
         start-stop-daemon -S -b -m -O /var/log/fwctld.log -p "$PIDFILE" -x /usr/sbin/fwctld -- \
@@ -52,7 +52,7 @@ case "$1" in
         attempts=0
         while start-stop-daemon -K -t -p "$PIDFILE" -x /usr/sbin/fwctld >/dev/null 2>&1; do
             attempts=$((attempts + 1))
-            [ "$attempts" -le 10 ] || { echo "fwctld: stop timed out" >&2; exit 1; }
+            [ "$attempts" -le 10 ] || { echo "[fwctld] [ERROR] stop timed out" >&2; exit 1; }
             sleep 1
         done
         rm -f "$PIDFILE"

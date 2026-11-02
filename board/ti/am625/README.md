@@ -43,3 +43,4 @@ files document their expected names.
 
 - [v1.0.16 OTA 验证记录](releases/v1.0.16.md)
 - [v0.0.1 / 4a7e87c2 OTA 验证记录](releases/v0.0.1-4a7e87c2.md)
+- [v0.0.1 / e993e58c OTA 验证记录](releases/v0.0.1-e993e58c.md)

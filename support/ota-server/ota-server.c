@@ -183,7 +183,7 @@ static void handle_client(int client, int root)
     bool head = !strcmp(method, "HEAD");
     unsigned long long length = 0;
     bool has_length = false, forbidden = false, admin = false, expect = false;
-    const char *origin = NULL, *host = NULL, *type = NULL;
+    const char *origin = NULL, *host = NULL, *type = NULL, *download_device = NULL;
     char *line = line_end + 2;
     while (*line) {
         char *end = strstr(line, "\r\n");
@@ -232,6 +232,9 @@ static void handle_client(int client, int root)
             if (type)
                 forbidden = true;
             type = value;
+        } else if (!strcasecmp(line, "X-OTA-Device")) {
+            if (download_device || !ota_identifier(value)) forbidden = true;
+            download_device = value;
         } else if (!strcasecmp(line, "Expect")) {
             if (strcasecmp(value, "100-continue"))
                 forbidden = true;
@@ -340,7 +343,31 @@ static void handle_client(int client, int root)
     char *query = strchr(path, '?');
     if (query)
         *query = '\0';
-    if (!strcmp(path, "/")) {
+    if (!strncmp(path, "/api/download/", 14)) {
+        char kind[16], id[64], extra, canonical[128], filename[128], header[512];
+        unsigned long long bytes;
+        if (sscanf(path, "/api/download/%15[^/]/%63s%c", kind, id, &extra) != 2) {
+            text_response(client, 404, "Not Found", "Firmware unavailable\n", head); return;
+        }
+        snprintf(canonical, sizeof(canonical), "/api/download/%s/%s", kind, id);
+        if (strcmp(path, canonical)) { text_response(client, 404, "Not Found", "Firmware unavailable\n", head); return; }
+        int bundle = ota_admin_bundle(server_directory, kind, id, filename, &bytes);
+        if (bundle < 0) {
+            text_response(client, bundle == -ENOENT ? 404 : 503, "Unavailable", "Cannot export verified firmware package\n", head); return;
+        }
+        int n = snprintf(header, sizeof(header), "HTTP/1.1 200 OK\r\nContent-Type: application/gzip\r\n"
+            "Content-Disposition: attachment; filename=\"%s\"\r\nContent-Length: %llu\r\n"
+            "Cache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\n", filename, bytes);
+        if (n > 0 && n < (int)sizeof(header) && !send_all(client, header, (size_t)n) && !head) {
+            char buffer[65536]; ssize_t got;
+            while (running && (got = read(bundle, buffer, sizeof(buffer))) != 0) {
+                if (got < 0 && errno == EINTR) continue;
+                if (got < 0 || send_all(client, buffer, (size_t)got)) break;
+            }
+        }
+        close(bundle); return;
+    }
+    if (!strcmp(path, "/") || !strcmp(path, "/firmware")) {
         index_page(client, head);
         return;
     }
@@ -406,43 +433,46 @@ static void handle_client(int client, int root)
         }
     }
     if (name && !strcmp(name, "version") && artifact_root >= 0) {
-        char directory[OTA_PATH], relative[128], hash[65], body[160]; unsigned long version;
+        char directory[OTA_PATH], relative[128], body[160]; struct ota_catalog_identity identity;
         unsigned long long publication; sscanf(path, "/releases/%llu/", &publication);
         snprintf(relative, sizeof(relative), "releases/%llu", publication);
-        if (ota_path(directory, server_directory, relative) || ota_firmware_identity(directory, hash, &version))
+        if (ota_path(directory, server_directory, relative) || ota_catalog_get(server_directory, directory, &identity))
             text_response(client, 422, "Invalid FIT", "Firmware content identity unavailable\n", head);
         else {
             snprintf(body, sizeof(body), "BSPOTAVERSION1 %llu v%lu.%lu.%lu %s\n", publication,
-                version >> 16, (version >> 8) & 255, version & 255, hash);
+                identity.version >> 16, (identity.version >> 8) & 255, identity.version & 255, identity.hash);
             text_response(client, 200, "OK", body, head);
         }
         close(artifact_root); return;
     }
     if (name && !strcmp(name, "identity") && artifact_root >= 0) {
         char directory[OTA_PATH], relative[128], body[512];
+        struct ota_catalog_identity identity;
         unsigned long long publication;
         sscanf(path, "/releases/%llu/", &publication);
         snprintf(relative, sizeof(relative), "releases/%llu", publication);
         if (ota_path(directory, server_directory, relative) ||
-            ota_image_identity(directory, publication, body, sizeof(body)))
+            ota_catalog_get(server_directory, directory, &identity))
             text_response(client, 422, "Invalid FIT", "Firmware identity unavailable\n", head);
-        else text_response(client, 200, "OK", body, head);
+        else {
+            snprintf(body, sizeof(body), "BSPOTAIMAGE1 %llu %lu %llu %s %llu %s\n", publication,
+                identity.version, identity.kernel_bytes, identity.kernel, identity.rootfs_bytes, identity.rootfs);
+            text_response(client, 200, "OK", body, head);
+        }
         close(artifact_root);
         return;
     }
     if (name && !strcmp(name, "info") && artifact_root >= 0) {
         char directory[OTA_PATH], body[128];
-        unsigned long version;
+        struct ota_catalog_identity identity;
         unsigned long long publication;
         sscanf(path, "/releases/%llu/", &publication);
-        snprintf(directory, sizeof(directory), "/proc/self/fd/%d", artifact_root);
-        /* fdtget runs in a child; CLOEXEC fds cannot be used for its pathname. */
         char relative[128];
         snprintf(relative, sizeof(relative), "releases/%llu", publication);
-        if (ota_path(directory, server_directory, relative) || ota_fit_version(directory, &version))
+        if (ota_path(directory, server_directory, relative) || ota_catalog_get(server_directory, directory, &identity))
             text_response(client, 422, "Invalid FIT", "Firmware version unavailable\n", head);
         else {
-            snprintf(body, sizeof(body), "BSPOTAINFO1 %llu %lu\n", publication, version);
+            snprintf(body, sizeof(body), "BSPOTAINFO1 %llu %lu\n", publication, identity.version);
             text_response(client, 200, "OK", body, head);
         }
         close(artifact_root);
@@ -483,6 +513,12 @@ static void handle_client(int client, int root)
             if (count <= 0 || send_all(client, buffer, (size_t)count))
                 break;
             remaining -= count;
+        }
+        if (!remaining && !strcmp(name, "rootfs.itb")) {
+            unsigned long long publication;
+            if (sscanf(path, "/releases/%llu/", &publication) == 1 &&
+                ota_catalog_download(server_directory, publication, download_device))
+                fprintf(stderr, "[ota-server] [ERROR] Cannot record completed download for #%llu\n", publication);
         }
     }
     close(fd);
