@@ -32,7 +32,7 @@ deployment_is_confirmed()
 {
 	deployment=$1
 	status=$(/usr/sbin/fwctl \
-		--config "${FWCTL_CONFIG:-/etc/edk/firmware.conf}" status 2>/dev/null) ||
+		--config "${FWCTL_CONFIG:-/etc/device-manager/firmware.conf}" status 2>/dev/null) ||
 		return 1
 	printf '%s\n' "$status" |
 		grep -q "^deployment ${deployment}: .* successful=1 "
@@ -68,7 +68,7 @@ mark_good_worker()
 		return 0
 	fi
 	if /usr/sbin/fwctl \
-		--config "${FWCTL_CONFIG:-/etc/edk/firmware.conf}" \
+		--config "${FWCTL_CONFIG:-/etc/device-manager/firmware.conf}" \
 		mark-good; then
 		echo "[fwctl] [INFO] current deployment marked good"
 		return 0
@@ -89,7 +89,7 @@ start_worker()
 	fi
 	rm -f "$PIDFILE"
 
-	"$0" worker "$deployment" >"$OUTPUT" 2>&1 &
+	/usr/sbin/logctl run services "$0" worker "$deployment" >"$OUTPUT" 2>&1 &
 	worker_pid=$!
 	if ! printf '%s\n' "$worker_pid" > "$PIDFILE"; then
 		kill "$worker_pid" 2>/dev/null

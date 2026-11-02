@@ -28,7 +28,32 @@ struct settings {
     char server[256], product[64], layout[64], interface[32], root[2][128];
 };
 static int watchdog_fd = -1;
-static void log_message(const char *s) { printf("[fw-init] [INFO] %s\n", s); fflush(stdout); }
+/* /run moves across switch_root. Keep the fd open until exec so the final
+ * handoff messages are retained even after /run moved to /newroot/run. */
+static int boot_log_fd = -1;
+static int pmsg_fd = -1;
+static void log_bytes(const char *s, size_t n)
+{
+    if (pmsg_fd >= 0) {
+        ssize_t written = write(pmsg_fd, s, n);
+        if (written < 0) { close(pmsg_fd); pmsg_fd = -1; }
+    }
+    if (boot_log_fd < 0) return;
+    struct stat st;
+    if (!fstat(boot_log_fd, &st) && st.st_size < 256 * 1024) {
+        while (n) {
+            ssize_t written = write(boot_log_fd, s, n);
+            if (written < 0 && errno == EINTR) continue;
+            if (written <= 0) break;
+            s += written; n -= (size_t)written;
+        }
+    }
+}
+static void log_message(const char *s)
+{
+    printf("[fw-init] [INFO] %s\n", s); fflush(stdout);
+    log_bytes("[fw-init] [INFO] ", 17); log_bytes(s, strlen(s)); log_bytes("\n", 1);
+}
 
 static int property(const char *dir, const char *name, void *data, size_t size)
 {
@@ -152,21 +177,30 @@ static void *feed_watchdog(void *unused)
 static int run(char *const args[], char *output, size_t capacity)
 {
     int fds[2] = {-1,-1};
-    if (output && pipe2(fds, O_CLOEXEC)) return -1;
+    if (pipe2(fds, O_CLOEXEC)) return -1;
     pid_t pid = fork();
-    if (pid < 0) { if (output) { close(fds[0]); close(fds[1]); } return -1; }
+    if (pid < 0) { close(fds[0]); close(fds[1]); return -1; }
     if (!pid) {
-        if (output) { dup2(fds[1], STDOUT_FILENO); close(fds[0]); close(fds[1]); }
+        dup2(fds[1], STDOUT_FILENO);
+        if (!output) dup2(fds[1], STDERR_FILENO);
+        else if (boot_log_fd >= 0) dup2(boot_log_fd, STDERR_FILENO);
+        close(fds[0]); close(fds[1]);
         execv(args[0], args); _exit(127);
     }
-    if (output) {
+    {
         close(fds[1]); size_t used = 0; int overflow = 0; char chunk[512]; ssize_t n;
         while ((n = read(fds[0], chunk, sizeof(chunk))) != 0) {
             if (n < 0) { if (errno == EINTR) continue; overflow = 1; break; }
-            if ((size_t)n >= capacity - used) overflow = 1;
-            if (!overflow) { memcpy(output + used, chunk, n); used += n; }
+            if (output) {
+                if ((size_t)n >= capacity - used) overflow = 1;
+                if (!overflow) { memcpy(output + used, chunk, n); used += n; }
+            } else {
+                log_bytes(chunk, (size_t)n);
+                (void)fwrite(chunk, 1, (size_t)n, stdout); fflush(stdout);
+            }
         }
-        output[used] = 0; close(fds[0]);
+        if (output) output[used] = 0;
+        close(fds[0]);
         if (overflow) { int status; while (waitpid(pid, &status, 0) < 0 && errno == EINTR) {} return -1; }
     }
     int status;
@@ -282,6 +316,8 @@ int main(int argc, char **argv)
         halt_recovery("cannot mount recovery runtime filesystems");
     int console = open("/dev/console", O_RDWR);
     if (console >= 0) { dup2(console,0); dup2(console,1); dup2(console,2); if (console>2) close(console); }
+    pmsg_fd = open("/dev/pmsg0", O_WRONLY|O_CLOEXEC);
+    boot_log_fd = open("/run/logctl-initramfs.log", O_WRONLY|O_CREAT|O_APPEND|O_CLOEXEC, 0600);
     log_message("independent initramfs recovery environment started");
     mkdir("/run/network",0755); mkdir("/run/lock",0755);
     watchdog_fd = open("/dev/watchdog0", O_WRONLY|O_CLOEXEC);
@@ -306,6 +342,7 @@ int main(int argc, char **argv)
     if (!run(identity_command, identity_text, sizeof(identity_text))) {
         identity_text[strcspn(identity_text, "\r\n")] = 0;
         puts(identity_text); fflush(stdout);
+        log_bytes(identity_text, strlen(identity_text)); log_bytes("\n", 1);
     }
     else log_message("firmware identity unavailable or inconsistent; inspect boot metadata");
     int fallback_attempted=0, network=0;

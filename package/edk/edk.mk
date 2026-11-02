@@ -17,15 +17,7 @@ EDK_ADD_TOOLCHAIN_DEPENDENCY = NO
 # Dependencies - Kconfig + CMake/Kbuild build system
 EDK_DEPENDENCIES = host-python3 host-pkgconf host-cmake host-flex host-bison linux
 
-ifeq ($(BR2_PACKAGE_EDK_FW),y)
-EDK_DEPENDENCIES += dtc libcurl openssl
-EDK_LICENSE += , GPL-2.0+
-EDK_LICENSE_FILES += LICENSE.GPL-2.0
-endif
 
-ifeq ($(BR2_PACKAGE_EDK_FW_FIT_SIGNATURE),y)
-EDK_DEPENDENCIES += uboot-tools
-endif
 
 ifeq ($(BR2_PACKAGE_EDK_WEB),y)
 EDK_DEPENDENCIES += cjson lighttpd
@@ -75,7 +67,6 @@ EDK_MAKE_OPTS = \
 
 EDK_CHECK_FEATURES = $(HOST_DIR)/bin/python3 $(@D)/scripts/check_buildroot.py \
     --build-dir "$(EDK_BUILD_OUTPUT)" \
-    --firmware "$(BR2_PACKAGE_EDK_FW)" \
     --web "$(BR2_PACKAGE_EDK_WEB)"
 
 # Configure using make (kernel-style interface)

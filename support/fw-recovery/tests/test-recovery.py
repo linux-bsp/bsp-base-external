@@ -113,7 +113,7 @@ class Recovery(unittest.TestCase):
         self.assertEqual(one.read_bytes(),two.read_bytes())
         entries=cpio_entries(one)
         for name in ('init','usr/sbin/fw-init','usr/sbin/fwctl','usr/bin/curl','bin/busybox',
-                     'etc/edk/firmware.conf','etc/fw-recovery.conf','etc/network/interfaces',
+                     'etc/device-manager/firmware.conf','etc/fw-recovery.conf','etc/network/interfaces',
                      'sbin/switch_root','sbin/ip','sbin/ifup','var/run','dev/console'):
             self.assertIn(name,entries)
         self.assertEqual(entries['init'][1],b'/usr/sbin/fw-init')
@@ -123,7 +123,7 @@ class Recovery(unittest.TestCase):
         self.assertEqual(entries['var/run'][1],b'../run')
         self.assertTrue(stat.S_ISCHR(entries['dev/console'][0][1]))
         self.assertEqual(entries['dev/console'][0][9:11],[5,1])
-        self.assertTrue(any('libedk_firmware.so' in name for name in entries))
+        self.assertFalse(any('libedk_firmware.so' in name for name in entries))
         self.assertTrue(any('ld-linux-aarch64.so' in name for name in entries))
         for name,(header,_) in entries.items():
             self.assertEqual(header[2:4],[0,0])

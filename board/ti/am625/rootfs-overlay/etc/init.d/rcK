@@ -1,4 +1,11 @@
 #!/bin/sh
+
+if [ -x /usr/sbin/logctl ] && [ "${LOGCTL_CAPTURED:-}" != rcK ]; then
+    LOGCTL_CAPTURED=rcK
+    export LOGCTL_CAPTURED
+    exec /usr/sbin/logctl run services /bin/sh "$0" "$@"
+fi
+
 #
 # Stop all init scripts in /etc/init.d
 # executing them in reversed numerical order.

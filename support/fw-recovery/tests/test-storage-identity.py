@@ -11,7 +11,7 @@ import unittest
 import zlib
 
 WORKSPACE=Path(__file__).resolve().parents[4]
-EDK=WORKSPACE/'edk'
+EDK=WORKSPACE/'device-manager'
 HOST=WORKSPACE/'output/am625/host'
 IMAGES=Path(os.environ.get('FW_TEST_IMAGES',WORKSPACE/'output/am625/images'))
 
@@ -22,38 +22,36 @@ class StorageIdentity(unittest.TestCase):
         cls.root=Path(cls.tmp.name)
         source=cls.root/'identity.c'
         source.write_text(r'''
-#include "edk/firmware.h"
-#include "edk_fw_update_priv.h"
+#include "dm/firmware.h"
+#include "dm_fw_update_priv.h"
 #include <stdio.h>
 #include <errno.h>
 int fw_update_release(const struct fw_layout *l, struct fw_storage *s,
-    const char *p, uint32_t c, edk_fw_progress_fn cb, void *d)
+    const char *p, uint32_t c, dm_fw_progress_fn cb, void *d)
 { (void)l; (void)s; (void)p; (void)c; (void)cb; (void)d; return -ENOSYS; }
 int main(int argc, char **argv) {
     if (argc != 2) return 2;
-    int h=edk_fw_open(argv[1]);
+    int h=dm_fw_open(argv[1]);
     if (h < 0) { printf("open=%d\n",h); return 1; }
     char tag[32], id[65];
-    int rc=edk_fw_get_identity(h,0,tag,id);
-    edk_fw_close(h);
+    int rc=dm_fw_get_identity(h,0,tag,id);
+    dm_fw_close(h);
     if (rc) { printf("error=%d\n",rc); return 1; }
     printf("%s %s\n",tag,id); return 0;
 }
 ''')
         cls.binary=cls.root/'identity'
-        src=EDK/'user/firmware/src'
-        files=['edk_fw.c','edk_fw_identity.c','edk_fw_recovery.c','edk_fw_fit.c','edk_fw_layout.c','edk_fw_metadata.c','edk_fw_storage.c','edk_fw_storage_block.c','edk_fw_storage_mtd.c']
-        command=['cc','-std=c11','-D_POSIX_C_SOURCE=200809L','-Wall','-Wextra','-Werror','-I'+str(src),'-I'+str(EDK/'user/firmware/include'),'-I'+str(EDK/'user/common'),'-I'+str(EDK/'user/osa/include'),'-I'+str(HOST/'include'),'-I'+str(HOST/'include/libfdt'),str(source)]
+        src=EDK/'firmware/src'
+        files=['dm_fw.c','dm_fw_identity.c','dm_fw_recovery.c','dm_fw_fit.c','dm_fw_layout.c','dm_fw_metadata.c','dm_fw_storage.c','dm_fw_storage_block.c','dm_fw_storage_mtd.c']
+        command=['cc','-std=c11','-D_POSIX_C_SOURCE=200809L','-Wall','-Wextra','-Werror','-I'+str(src),'-I'+str(EDK/'firmware/include'),'-I'+str(EDK/'firmware/src'),'-I'+str(EDK/'fwctl/adapter'),'-I'+str(HOST/'include'),'-I'+str(HOST/'include/libfdt'),str(source)]
         command += [str(src/f) for f in files]
         command += ['-L'+str(HOST/'lib'),'-Wl,-rpath,'+str(HOST/'lib'),'-lcrypto','-lfdt','-pthread','-o',str(cls.binary)]
         cls.runner=[]
         if os.environ.get('FW_ID_TEST_TARGET'):
             target=WORKSPACE/'output/am625/target'
             sysroot=WORKSPACE/'output/am625/staging'
-            command=[str(HOST/'bin/aarch64-buildroot-linux-gnu-gcc'),'--sysroot='+str(sysroot),
-                '-I'+str(src),'-I'+str(EDK/'user/firmware/include'),str(source),
-                '-L'+str(target/'usr/lib'),'-Wl,-rpath-link,'+str(target/'usr/lib'),'-Wl,-rpath-link,'+str(sysroot/'usr/lib'),
-                '-ledk_firmware','-o',str(cls.binary)]
+            command[0]=str(HOST/'bin/aarch64-buildroot-linux-gnu-gcc')
+            command=[x for x in command if x not in ('-I'+str(HOST/'include'), '-I'+str(HOST/'include/libfdt'), '-L'+str(HOST/'lib'), '-Wl,-rpath,'+str(HOST/'lib'))]
             cls.runner=[str(WORKSPACE/'output/initramfs-qemu/tools/usr/bin/qemu-aarch64'),'-L',str(target)]
         subprocess.run(command,check=True)
         cls.identity=json.loads((IMAGES/'firmware-identity.json').read_text())
@@ -70,7 +68,7 @@ int main(int argc, char **argv) {
             f.truncate(0x14000000)
             f.seek(0x01000000);f.write(self.kernel)
             f.seek(0x04000000);f.write(self.rootfs)
-        config=(WORKSPACE/'bsp-base-external/board/ti/am625/rootfs-overlay/etc/edk/firmware.conf').read_text()
+        config=(WORKSPACE/'bsp-base-external/board/ti/am625/rootfs-overlay/etc/device-manager/firmware.conf').read_text()
         config=config.replace('device=/dev/mmcblk1','device='+str(self.disk)).replace('work-dir=/tmp','work-dir='+str(self.root))
         self.config=self.root/'config';self.config.write_text(config)
         self.metadata(legacy=True)

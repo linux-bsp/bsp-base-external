@@ -1,7 +1,7 @@
 #!/bin/sh
 
 MARKER=/run/fw-rollback-test.active
-FWCTL_CONFIG=/etc/edk/firmware.conf
+FWCTL_CONFIG=/etc/device-manager/firmware.conf
 
 cmdline_value()
 {

@@ -81,10 +81,10 @@ def build(target, board, host, output):
                 alias.parent.mkdir(parents=True, exist_ok=True)
                 alias.symlink_to(os.path.relpath(root/canonical, alias.parent))
 
-        for name in ('bin/busybox','usr/sbin/fw-init','usr/sbin/fwctl','usr/bin/curl','etc/edk/firmware.conf','etc/network/interfaces','usr/share/udhcpc/default.script'):
+        for name in ('bin/busybox','usr/sbin/fw-init','usr/sbin/fwctl','usr/bin/curl','etc/device-manager/firmware.conf','etc/network/interfaces','usr/share/udhcpc/default.script'):
             copy(name)
         config={}
-        for line in (root/'etc/edk/firmware.conf').read_text().splitlines():
+        for line in (root/'etc/device-manager/firmware.conf').read_text().splitlines():
             if '=' in line and not line.lstrip().startswith('#'):
                 key,value=line.split('=',1);config[key.strip()]=value.strip()
         if config.get('require-signature')=='true':

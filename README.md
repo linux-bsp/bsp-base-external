@@ -47,16 +47,18 @@ a separately configured SDK with suitable headers. This is not an i.MX6ULL SDK.
 
 ## OTA publication, automatic updates and recovery
 
-The C server under `support/ota-server/` provides a web interface to upload,
+The C `device-server` in the sibling `device-manager/` repository provides a web interface to upload,
 review, and publish firmware releases. The standalone C `ota-cli` provides
 HTTP upload, publication, and status queries from an SSH terminal. Devices poll, download, and verify the
 published release, install it with `fwctl`, reboot, and report the result after
 boot health confirmation when automatic installation is enabled. U-Boot can
 request the exact kernel version from the same server to repair a damaged slot.
-See [the OTA guide](support/ota-server/README.md) for build, publication, device
+See [the Device Manager guide](../device-manager/README.md) for build, publication, device
 configuration, and test commands. The AM62x configuration includes `fwctld`;
 its boot service is disabled until explicitly configured.
 
 ## AM625 独立恢复环境
 
 板级构建已接入 [initramfs + rootfs A/B](board/ti/am625/verified-boot.md)，包含完整性检查、备用 deployment 回退和按内容哈希恢复 rootfs。
+
+Build host tools with `make -C buildroot O="$PWD/output/am625" host-device-server` from the workspace. The package installs `device-server` and `ota-cli` under `output/am625/host/bin/`. Device packages are `fwctl`, `fwctld` and `logctl`.

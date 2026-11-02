@@ -14,7 +14,7 @@ start_interface()
 		return 0
 	fi
 
-	if /sbin/ifup "$iface" >/dev/console 2>&1; then
+	if /sbin/ifup "$iface"; then
 		echo "${iface}: static configuration applied"
 		return 0
 	fi

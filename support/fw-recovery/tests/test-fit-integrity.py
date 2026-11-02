@@ -11,7 +11,7 @@ import unittest
 WORKSPACE=Path(__file__).resolve().parents[4]
 HOST=Path(os.environ.get('HOST_DIR',WORKSPACE/'output/am625/host'))
 IMAGES=Path(os.environ.get('FW_TEST_IMAGES', WORKSPACE/'output/am625/images'))
-EDK=WORKSPACE/'edk/user/firmware'
+EDK=WORKSPACE/'device-manager/firmware'
 FDT=WORKSPACE/'uboot/u-boot-2026.04/scripts/dtc/libfdt'
 
 class FITIntegrity(unittest.TestCase):
@@ -19,7 +19,7 @@ class FITIntegrity(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='fw-fit-test-') as name:
             root=Path(name);source=root/'check.c';binary=root/'check'
             source.write_text(r'''
-#include "edk_fw_fit_priv.h"
+#include "dm_fw_fit_priv.h"
 #include <string.h>
 const char *fw_component_name(enum fw_component c) {
     static const char *names[]={"bootloader","kernel","rootfs"};
@@ -36,7 +36,7 @@ int main(int argc, char **argv) {
 }
 ''')
             subprocess.run(['cc','-D_POSIX_C_SOURCE=200809L','-std=c11','-Wall','-Wextra','-Werror',
-                '-I'+str(EDK/'src'),'-I'+str(FDT),'-I'+str(HOST/'include'),str(source),str(EDK/'src/edk_fw_fit.c'),
+                '-I'+str(EDK/'src'),'-I'+str(FDT),'-I'+str(HOST/'include'),str(source),str(EDK/'src/dm_fw_fit.c'),
                 str(FDT/'fdt.c'),str(FDT/'fdt_ro.c'),'-L'+str(HOST/'lib'),'-Wl,-rpath,'+str(HOST/'lib'),'-lcrypto','-o',str(binary)],check=True)
             fit=IMAGES/'release/kernel.itb';ramdisk=(IMAGES/'recovery.cpio.gz').read_bytes()
             self.assertEqual(subprocess.run([str(binary),str(fit)]).returncode,0)
@@ -77,33 +77,33 @@ int main(int argc, char **argv) {
         with tempfile.TemporaryDirectory(prefix='fw-real-restore-') as name:
             root=Path(name); source=root/'restore.c'; binary=root/'restore'
             source.write_text(r'''
-#include "edk/firmware.h"
-#include "edk_fw_update_priv.h"
+#include "dm/firmware.h"
+#include "dm_fw_update_priv.h"
 #include <assert.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 int fw_update_release(const struct fw_layout *l, struct fw_storage *s, const char *p,
-    uint32_t c, edk_fw_progress_fn f, void *u)
+    uint32_t c, dm_fw_progress_fn f, void *u)
 { (void)l;(void)s;(void)p;(void)c;(void)f;(void)u;return -ENOTSUP; }
 int main(int argc,char **argv) {
     assert(argc==5);
-    int handle=edk_fw_open(argv[1]);assert(handle>0);
-    assert(!edk_fw_initialize(handle,0));
+    int handle=dm_fw_open(argv[1]);assert(handle>0);
+    assert(!dm_fw_initialize(handle,0));
     uint8_t digest[32],bad[32]={0};const char *digits="0123456789abcdef";
     for(unsigned i=0;i<32;i++) digest[i]=(strchr(digits,argv[4][2*i])-digits)*16+strchr(digits,argv[4][2*i+1])-digits;
     uint64_t bytes=strtoull(argv[3],NULL,10);
-    assert(edk_fw_restore_rootfs(handle,0,argv[2],bytes,bad)==-EBADMSG);
-    struct edk_fw_status before,after;
-    assert(!edk_fw_get_status(handle,&before));
-    assert(!edk_fw_restore_rootfs(handle,0,argv[2],bytes,digest));
-    assert(!edk_fw_get_status(handle,&after));
+    assert(dm_fw_restore_rootfs(handle,0,argv[2],bytes,bad)==-EBADMSG);
+    struct dm_fw_status before,after;
+    assert(!dm_fw_get_status(handle,&before));
+    assert(!dm_fw_restore_rootfs(handle,0,argv[2],bytes,digest));
+    assert(!dm_fw_get_status(handle,&after));
     assert(!memcmp(&before,&after,sizeof(before)));
-    assert(!edk_fw_close(handle));return 0;
+    assert(!dm_fw_close(handle));return 0;
 }
 ''')
-            modules=['edk_fw.c','edk_fw_identity.c','edk_fw_recovery.c','edk_fw_fit.c','edk_fw_layout.c',
-                'edk_fw_metadata.c','edk_fw_storage.c','edk_fw_storage_block.c','edk_fw_storage_mtd.c']
+            modules=['dm_fw.c','dm_fw_identity.c','dm_fw_recovery.c','dm_fw_fit.c','dm_fw_layout.c',
+                'dm_fw_metadata.c','dm_fw_storage.c','dm_fw_storage_block.c','dm_fw_storage_mtd.c']
             subprocess.run(['cc','-D_POSIX_C_SOURCE=200809L','-std=c11','-Wall','-Wextra','-Werror',
                 '-I'+str(EDK/'src'),'-I'+str(EDK/'include'),'-I'+str(EDK.parent/'common'),'-I'+str(FDT),'-I'+str(HOST/'include'),str(source)] +
                 [str(EDK/'src'/module) for module in modules] + [str(FDT/'fdt.c'),str(FDT/'fdt_ro.c'),

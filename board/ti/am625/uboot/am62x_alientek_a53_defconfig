@@ -165,3 +165,5 @@ CONFIG_EFI_SET_TIME=y
 #include <configs/am62x_a53_usbdfu.config>
 
 CONFIG_OF_BOARD_SETUP=y
+
+CONFIG_BSP_BOOTLOG=y

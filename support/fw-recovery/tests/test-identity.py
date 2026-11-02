@@ -10,7 +10,7 @@ import tempfile
 WORKSPACE = Path(__file__).resolve().parents[4]
 HOST = WORKSPACE/'output/am625/host'
 IMAGES = Path(os.environ.get('FW_TEST_IMAGES', WORKSPACE/'output/am625/images'))
-EDK = WORKSPACE/'edk/user/firmware'
+EDK = WORKSPACE/'device-manager/firmware'
 FDT = WORKSPACE/'uboot/u-boot-2026.04/scripts/dtc/libfdt'
 SANDBOX = WORKSPACE/'output/uboot-ota-sandbox/u-boot'
 ENV = dict(os.environ, PATH=str(HOST/'bin')+':'+os.environ['PATH'])
@@ -25,8 +25,8 @@ with tempfile.TemporaryDirectory(prefix='fw-identity-') as directory:
     root = Path(directory)
     source = root/'identity.c'
     source.write_text(r'''
-#include "edk_fw_fit_priv.h"
-#include "edk_fw_storage_priv.h"
+#include "dm_fw_fit_priv.h"
+#include "dm_fw_storage_priv.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -74,7 +74,7 @@ int main(int argc, char **argv)
     binary = root/'identity'
     run(['cc', '-std=c11', '-D_POSIX_C_SOURCE=200809L', '-Wall', '-Wextra', '-Werror',
          '-I'+str(EDK/'src'), '-I'+str(EDK/'include'), '-I'+str(FDT), '-I'+str(HOST/'include'),
-         source, EDK/'src/edk_fw_fit.c', EDK/'src/edk_fw_metadata.c',
+         source, EDK/'src/dm_fw_fit.c', EDK/'src/dm_fw_metadata.c',
          FDT/'fdt.c', FDT/'fdt_ro.c', '-L'+str(HOST/'lib'), '-Wl,-rpath,'+str(HOST/'lib'),
          '-lcrypto', '-o', binary])
     for i in range(2):

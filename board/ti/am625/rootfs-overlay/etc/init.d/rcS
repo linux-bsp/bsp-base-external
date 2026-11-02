@@ -1,5 +1,12 @@
 #!/bin/sh
 
+if [ -x /usr/sbin/logctl ] && [ "${LOGCTL_CAPTURED:-}" != rcS ]; then
+    LOGCTL_CAPTURED=rcS
+    export LOGCTL_CAPTURED
+    exec /usr/sbin/logctl run services /bin/sh "$0" "$@"
+fi
+
+
 BOOT_FAILURES=/run/rcS.failed
 BOOT_COMPLETE=/run/rcS.complete
 
