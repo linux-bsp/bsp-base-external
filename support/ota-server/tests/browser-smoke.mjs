@@ -109,14 +109,42 @@ try {
         await evaluate(`document.querySelector('#tab-${tab}').click()`);
         assert(await evaluate(`!document.querySelector('#panel-${tab}').hidden && document.querySelectorAll('[role=tabpanel]:not([hidden])').length===1`),'Tab '+tab);
     }
-    assert(await evaluate("document.querySelector('#drafts a.download').href.includes('/api/download/draft/')"));
-    assert(await evaluate("document.querySelector('#releases a.download').href.includes('/api/download/release/')"));
+    // Tab URL survives full page reload; refresh/filter never resets selection.
+    await evaluate("document.querySelector('#tab-history').click()");
+    await rpc('Page.reload');
+    await until(()=>evaluate("document.querySelectorAll('#devices tr').length===2"),'reload history');
+    assert(await evaluate("location.hash==='#history' && !document.querySelector('#panel-history').hidden"));
+    await evaluate("document.querySelector('[data-refresh=history]').click()");
+    await until(()=>evaluate("!document.querySelector('[data-refresh=history]').disabled"),'tab refresh');
+    assert(await evaluate("!document.querySelector('#panel-history').hidden"));
+    async function search(tab,text){
+        await evaluate(`document.querySelector('#tab-${tab}').click();document.querySelector('#search-${tab}').value=${JSON.stringify(text)};document.querySelector('#search-${tab}').dispatchEvent(new Event('input'))`);
+    }
+    await search('history',draft.firmware_id.slice(32));
+    assert.equal(await evaluate("document.querySelectorAll('#devices tr:not([hidden])').length"),1,'Search full hash beyond display prefix');
+    await search('history','browser-test 升级成功');
+    assert.equal(await evaluate("document.querySelectorAll('#devices tr:not([hidden])').length"),1);
+    await search('history','no-such-device');
+    assert(await evaluate("!document.querySelector('#empty-history').hidden"));
+    await search('history','');
+    for(const tab of ['manage','releases']){
+        await search(tab,draft.tag+' '+draft.firmware_id.slice(0,8));
+        assert.equal(await evaluate(`document.querySelectorAll('#${tab==='manage'?'drafts':'releases'} tr:not([hidden])').length`),1);
+        await rpc('Page.reload');
+        await until(()=>evaluate(`document.querySelector('#search-${tab}')?.value===${JSON.stringify(draft.tag+' '+draft.firmware_id.slice(0,8))} && document.querySelector('#count-${tab}').textContent==='1 / 1 条'`),'filter survives reload');
+        assert(await evaluate(`!document.querySelector('#panel-${tab}').hidden`));
+        await search(tab,'');
+    }
+    assert.deepEqual(await evaluate("[...document.querySelectorAll('#drafts-table th')].map(x=>x.textContent)"),['产品','固件版本','固件ID','大小','操作','详情']);
+    await evaluate("document.querySelector('#tab-manage').click()");
+    assert(await evaluate("!document.querySelector('#overview a.download')"),'Download only in details');
+    for(const table of ['drafts','releases'])assert(await evaluate(`document.querySelector('#${table} .publishing').disabled && document.querySelector('#${table} .publishing').textContent==='当前版本发布中' && getComputedStyle(document.querySelector('#${table} .publishing')).backgroundColor==='rgb(229, 231, 235)'`),'Grey current release button');
     await screenshot('published-desktop.png');
     await rpc('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
     await pause(150);
     assert(await evaluate('document.documentElement.scrollWidth<=window.innerWidth+1'),'Mobile page overflows');
     await screenshot('published-mobile.png');
-    await rpc('Page.navigate',{url:url+'/firmware?kind=release&id='+after.latest});
+    await rpc('Page.navigate',{url:url+'/firmware?kind=release&id='+after.latest+'&tab=releases'});
     await until(()=>evaluate("document.querySelector('#firmware-detail')?.textContent.includes('设备下载次数')"),'firmware detail');
     const detail=await evaluate("document.querySelector('#firmware-detail').textContent");
     for(const field of ['上传时间','版本号','更新成功次数','更新失败次数','是否有效',expectedTag,draft.firmware_id]) assert(detail.includes(field),field);
@@ -126,6 +154,25 @@ try {
     await screenshot('firmware-detail-mobile.png');
     await rpc('Emulation.setDeviceMetricsOverride',{width:1280,height:1000,deviceScaleFactor:1,mobile:false});
     await screenshot('firmware-detail-desktop.png');
+    assert(await evaluate("document.querySelector('#firmware-detail a').getAttribute('href')==='/#releases'"),'Return to original tab');
+    // Use real HTTP headers, persist context and show it in upgrade history.
+    const contextHeaders={'X-OTA-Request':'1','X-OTA-Device':'network-audit','X-OTA-IP':'192.0.2.99','X-OTA-MAC':'02:00:00:00:00:99','X-OTA-Hostname':'am625-audit','X-OTA-Boot':'network-boot'};
+    const failure=await fetch(url+'/api/devices/network-audit',{method:'POST',headers:contextHeaders,body:`BSPOTASTATE2 network-audit ti-am62x am62x-sd-ab-v1 ${after.latest} 1 network-boot install-failed 1 1 simulated-failure\n`});
+    assert.equal(failure.status,200);
+    await rpc('Page.navigate',{url:url+'/#manage'});
+    await until(()=>evaluate("!!document.querySelector('#drafts .invalid')"),'quarantined button');
+    assert(await evaluate("document.querySelector('#drafts .invalid').disabled && getComputedStyle(document.querySelector('#drafts .invalid')).backgroundColor==='rgb(180, 35, 24)'"));
+    await screenshot('invalid-firmware.png');
+    for(const term of ['192.0.2.99','02:00:00:00:00:99','am625-audit']){
+        await search('history',term);
+        assert.equal(await evaluate("document.querySelectorAll('#devices tr:not([hidden])').length"),1,'Network filter '+term);
+    }
+    await evaluate("document.querySelector('#devices tr:not([hidden]) details').open=true");
+    await screenshot('network-audit.png');
+    await search('audit',draft.firmware_id.slice(32));
+    assert(await evaluate("document.querySelectorAll('#audit tr:not([hidden])').length>0"));
+    await evaluate("document.querySelector('#tab-history').click();document.querySelector('#tab-releases').click();history.back()");
+    await until(()=>evaluate("!document.querySelector('#panel-history').hidden"),'browser back restores tab');
     assert.equal(errors.length,0,JSON.stringify(errors));
     await writeFile(join(outputDir,'browser-result.json'),JSON.stringify({
         uploadCreatedDraft:true,uploadDidNotPublish:true,deviceResultsRendered:true,publication:after.latest,

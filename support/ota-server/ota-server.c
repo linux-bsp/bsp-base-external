@@ -184,6 +184,7 @@ static void handle_client(int client, int root)
     unsigned long long length = 0;
     bool has_length = false, forbidden = false, admin = false, expect = false;
     const char *origin = NULL, *host = NULL, *type = NULL, *download_device = NULL;
+    struct ota_network_context network = {0};
     char *line = line_end + 2;
     while (*line) {
         char *end = strstr(line, "\r\n");
@@ -235,12 +236,32 @@ static void handle_client(int client, int root)
         } else if (!strcasecmp(line, "X-OTA-Device")) {
             if (download_device || !ota_identifier(value)) forbidden = true;
             download_device = value;
+        } else if (!strcasecmp(line, "X-OTA-IP")) {
+            if (network.ip) forbidden = true;
+            network.ip = value;
+        } else if (!strcasecmp(line, "X-OTA-MAC")) {
+            if (network.mac) forbidden = true;
+            network.mac = value;
+        } else if (!strcasecmp(line, "X-OTA-Hostname")) {
+            if (network.hostname) forbidden = true;
+            network.hostname = value;
+        } else if (!strcasecmp(line, "X-OTA-Boot")) {
+            if (network.boot) forbidden = true;
+            network.boot = value;
         } else if (!strcasecmp(line, "Expect")) {
             if (strcasecmp(value, "100-continue"))
                 forbidden = true;
             expect = true;
         }
         line = end + 2;
+    }
+    if ((network.ip || network.mac || network.hostname || network.boot) &&
+        (!download_device || !ota_network_valid(&network))) forbidden = true;
+    struct sockaddr_storage peer; socklen_t peer_size = sizeof(peer);
+    strcpy(network.peer_ip, "unknown");
+    if (!getpeername(client, (struct sockaddr *)&peer, &peer_size)) {
+        if (peer.ss_family == AF_INET) inet_ntop(AF_INET, &((struct sockaddr_in *)&peer)->sin_addr, network.peer_ip, sizeof(network.peer_ip));
+        else if (peer.ss_family == AF_INET6) inet_ntop(AF_INET6, &((struct sockaddr_in6 *)&peer)->sin6_addr, network.peer_ip, sizeof(network.peer_ip));
     }
     if (forbidden) {
         json_response(client, 400, "Bad Request", "{\"error\":\"Invalid request headers\"}", head);
@@ -286,9 +307,11 @@ static void handle_client(int client, int root)
             }
             body[received] = 0;
             struct ota_report report;
-            if (memchr(body, 0, received) || ota_report_parse(body, &report) || strcmp(report.device, id))
+            if (memchr(body, 0, received) || ota_report_parse(body, &report) || strcmp(report.device, id) ||
+                (download_device && strcmp(download_device, id)))
                 text_response(client, 400, "Bad Request", "Invalid report\n", false);
-            else if (ota_device_write(server_directory, &report))
+            else if (ota_catalog_request(server_directory, id, report.publication, report.boot, report.phase, &network) ||
+                     ota_device_write(server_directory, &report))
                 text_response(client, 500, "Write Failed", "Report not saved\n", false);
             else text_response(client, 200, "OK", "ok\n", false);
         } else text_response(client, 405, "Method Not Allowed", "Use GET or POST\n", false);
@@ -401,6 +424,13 @@ static void handle_client(int client, int root)
     int artifact_root = -1;
     const char *name = NULL;
     if (!strcmp(path, "/latest")) {
+        if (!head && network.ip) {
+            char latest_path[OTA_PATH]; struct release latest = {0};
+            if (!ota_path(latest_path, server_directory, "latest")) (void)ota_read(latest_path, &latest);
+            if (ota_catalog_request(server_directory, download_device, latest.version, network.boot, "requested", &network)) {
+                text_response(client, 503, "Unavailable", "Cannot persist device request audit\n", head); return;
+            }
+        }
         name = "latest";
         artifact_root = dup(root);
     } else {

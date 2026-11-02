@@ -19,15 +19,14 @@ static void stop_daemon(int sig)
 
 static int download(const char *url, const char *path, unsigned long long limit, int allow_absent, const char *device)
 {
-    char maximum[32], status[16], device_header[96];
-    snprintf(device_header, sizeof(device_header), "X-OTA-Device: %s", device ? device : "");
+    char maximum[32], status[16];
+    (void)device;
     snprintf(maximum, sizeof(maximum), "%llu", limit);
     char *args[] = {"curl", "--disable", "--silent", "--show-error",
         "--noproxy", "*", "--proto", "=http,https", "--connect-timeout", "10",
         "--max-time", "1800", "--speed-limit", "1024", "--speed-time", "30",
-        "--header", device ? device_header : "X-OTA-Device:",
         "--max-filesize", maximum, "--output", (char *)path, "--write-out", "%{http_code}", "--url", (char *)url, NULL};
-    if (ota_run(args, status, sizeof(status)))
+    if (fwctld_request(args, status, sizeof(status)))
         return -1;
     if (allow_absent && (!strcmp(status, "404") || !strcmp(status, "204"))) return 1;
     if (strcmp(status, "200")) { fwctld_error("HTTP %s while downloading %s", status, url); return -1; }
@@ -95,7 +94,7 @@ static int poll_release(const char *server, const char *cache, const char *produ
             goto done;
         }
         if (r.version < old.version) {
-            fwctld_error("Refusing older publication %llu (cached %llu)\n", r.version, old.version);
+            fwctld_error("Refusing stale firmware manifest; server publication predates the cached firmware");
             goto done;
         }
         if (r.version == old.version) {
@@ -108,7 +107,7 @@ static int poll_release(const char *server, const char *cache, const char *produ
         }
     }
     if (!unchanged) {
-        fwctld_log("Discovered firmware %s (%s/%s, publication #%llu); preparing download", label, r.product, r.layout, r.version);
+        fwctld_log("Discovered firmware %s; preparing download", label);
     }
     snprintf(name, sizeof(name), "%llu", r.version);
     if (ota_path(dest, cache, name))
@@ -162,7 +161,7 @@ static int poll_release(const char *server, const char *cache, const char *produ
     unlink(record);
     if (ota_write(record, &r) || rename(record, current) || ota_sync_dir(cache))
         goto done;
-    fwctld_log("Ready: firmware %s; fwctl update %s/release.itb", label, dest);
+    fwctld_log("Ready: firmware %s", label);
     rc = 0;
 done:
     for (int i = 0; i < 3; i++)
@@ -215,6 +214,7 @@ int main(int argc, char **argv)
         } else
             goto usage;
     }
+    if (device && !ota_identifier(device)) goto usage;
     if (interface && (!*interface || strlen(interface) >= IF_NAMESIZE)) goto usage;
     if ((force && (!once || !auto_install)) || (auto_install && (!device || !ota_identifier(device))) || !server || !cache_arg || !product || !layout || !ota_identifier(product) ||
         !ota_identifier(layout) || (strncmp(server, "http://", 7) && strncmp(server, "https://", 8)) ||
@@ -250,6 +250,7 @@ int main(int argc, char **argv)
             goto wait_for_next_check;
         }
         waiting_for_network = 0;
+        fwctld_network_context(interface, device);
         const char *stage = "transaction reconciliation";
         rc = auto_install ? fwctld_auto_reconcile(base, device, product, layout) : 0;
         if (!rc) {

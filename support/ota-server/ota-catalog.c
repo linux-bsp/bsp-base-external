@@ -1,5 +1,7 @@
 #define _XOPEN_SOURCE 700
 #include "ota-admin.h"
+#include "ota-device.h"
+#include <arpa/inet.h>
 #include <inttypes.h>
 #include <sqlite3.h>
 #include <stdio.h>
@@ -26,7 +28,13 @@ static int database(const char *root)
         "rootfs_sha256 TEXT NOT NULL, kernel_bytes INTEGER NOT NULL, rootfs_bytes INTEGER NOT NULL, uploaded_at INTEGER NOT NULL, verified_at INTEGER NOT NULL);"
         "CREATE TABLE IF NOT EXISTS firmware_downloads (id INTEGER PRIMARY KEY,"
         "publication INTEGER NOT NULL, device TEXT NOT NULL, completed_at INTEGER NOT NULL);"
-        "CREATE INDEX IF NOT EXISTS downloads_publication ON firmware_downloads(publication);";
+        "CREATE INDEX IF NOT EXISTS downloads_publication ON firmware_downloads(publication);"
+        "CREATE TABLE IF NOT EXISTS device_requests (id INTEGER PRIMARY KEY,device TEXT NOT NULL,"
+        "publication INTEGER NOT NULL,transaction_boot TEXT NOT NULL,request_boot TEXT NOT NULL,phase TEXT NOT NULL,"
+        "ip TEXT NOT NULL,mac TEXT NOT NULL,hostname TEXT NOT NULL,peer_ip TEXT NOT NULL,"
+        "first_seen INTEGER NOT NULL,last_seen INTEGER NOT NULL,requests INTEGER NOT NULL,"
+        "UNIQUE(device,publication,transaction_boot,request_boot,phase,ip,mac,hostname,peer_ip));"
+        "CREATE INDEX IF NOT EXISTS requests_transaction ON device_requests(device,publication,transaction_boot);";
     if (sqlite3_exec(catalog, schema, NULL, NULL, NULL) != SQLITE_OK) goto fail;
     strcpy(catalog_path, path);
     return 0;
@@ -158,6 +166,63 @@ int ota_catalog_downloads_json(const char *root, FILE *out)
             count++ ? "," : "", (long long)sqlite3_column_int64(query,0),
             (long long)sqlite3_column_int64(query,1), (long long)sqlite3_column_int64(query,2),
             (long long)sqlite3_column_int64(query,3));
+    }
+    sqlite3_finalize(query);
+    return result == SQLITE_DONE && !ferror(out) ? 0 : -1;
+}
+
+/* All interpolated JSON values below are restricted to safe ASCII tokens. */
+int ota_network_valid(const struct ota_network_context *n)
+{
+    unsigned char address[16];
+    if (!n->ip || !n->mac || !n->hostname || !n->boot) return 0;
+    if (strcmp(n->ip, "unknown") && inet_pton(AF_INET, n->ip, address) != 1 &&
+        inet_pton(AF_INET6, n->ip, address) != 1) return 0;
+    if (strcmp(n->mac, "unknown")) {
+        if (strlen(n->mac) != 17) return 0;
+        for (int i = 0; i < 17; i++)
+            if (i % 3 == 2 ? n->mac[i] != ':' : !strchr("0123456789abcdefABCDEF", n->mac[i])) return 0;
+    }
+    size_t length = strlen(n->hostname);
+    return length > 0 && length <= 253 &&
+        strspn(n->hostname, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-") == length &&
+        ota_identifier(n->boot);
+}
+int ota_catalog_request(const char *root, const char *device, unsigned long long publication,
+                        const char *transaction, const char *phase, const struct ota_network_context *n)
+{
+    if (!n->ip) return 0; /* Historical clients never supplied these facts. */
+    if (!ota_network_valid(n) || !ota_identifier(device) || !ota_identifier(transaction) || !ota_identifier(phase) || database(root)) return -1;
+    sqlite3_stmt *query = NULL;
+    const char *sql = "INSERT INTO device_requests(device,publication,transaction_boot,request_boot,phase,ip,mac,hostname,peer_ip,first_seen,last_seen,requests) "
+        "VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,unixepoch(),unixepoch(),1) "
+        "ON CONFLICT(device,publication,transaction_boot,request_boot,phase,ip,mac,hostname,peer_ip) "
+        "DO UPDATE SET last_seen=unixepoch(),requests=requests+1";
+    if (sqlite3_prepare_v2(catalog, sql, -1, &query, NULL) != SQLITE_OK) return -1;
+    sqlite3_bind_text(query, 1, device, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int64(query, 2, (sqlite3_int64)publication);
+    const char *values[] = {transaction, n->boot, phase, n->ip, n->mac, n->hostname, n->peer_ip};
+    for (int i = 0; i < 7; i++) sqlite3_bind_text(query, i + 3, values[i], -1, SQLITE_TRANSIENT);
+    int result = sqlite3_step(query); sqlite3_finalize(query);
+    return result == SQLITE_DONE ? 0 : -1;
+}
+int ota_catalog_network_json(const char *root, FILE *out, const struct ota_report *r)
+{
+    if (database(root)) return -1;
+    sqlite3_stmt *query = NULL;
+    const char *sql = "SELECT ip,mac,hostname,peer_ip,request_boot,phase,first_seen,last_seen,requests "
+        "FROM device_requests WHERE device=?1 AND publication=?2 AND transaction_boot=?3 ORDER BY id";
+    if (sqlite3_prepare_v2(catalog, sql, -1, &query, NULL) != SQLITE_OK) return -1;
+    sqlite3_bind_text(query, 1, r->device, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int64(query, 2, (sqlite3_int64)r->publication);
+    sqlite3_bind_text(query, 3, r->boot, -1, SQLITE_TRANSIENT);
+    int result, count = 0;
+    while ((result = sqlite3_step(query)) == SQLITE_ROW) {
+        fprintf(out, "%s{\"ip\":\"%s\",\"mac\":\"%s\",\"hostname\":\"%s\",\"peer_ip\":\"%s\","
+            "\"request_boot\":\"%s\",\"phase\":\"%s\",\"first_seen\":%lld,\"last_seen\":%lld,\"requests\":%lld}",
+            count++ ? "," : "", sqlite3_column_text(query,0), sqlite3_column_text(query,1),
+            sqlite3_column_text(query,2), sqlite3_column_text(query,3), sqlite3_column_text(query,4), sqlite3_column_text(query,5),
+            (long long)sqlite3_column_int64(query,6), (long long)sqlite3_column_int64(query,7), (long long)sqlite3_column_int64(query,8));
     }
     sqlite3_finalize(query);
     return result == SQLITE_DONE && !ferror(out) ? 0 : -1;

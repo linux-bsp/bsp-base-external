@@ -3,6 +3,7 @@
 #include "fwctld-auto.h"
 #include "ota-device.h"
 #include "fwctld-log.h"
+#include "fwctld-network.h"
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -44,7 +45,7 @@ static int get(const char *url, char *text, unsigned size)
     char *args[] = {"curl", "--disable", "--fail", "--silent", "--show-error",
         "--noproxy", "*", "--proto", "=http,https", "--connect-timeout", "5",
         "--max-time", "15", "--max-filesize", "767", "--url", (char *)url, NULL};
-    return ota_run(args, text, size);
+    return fwctld_request(args, text, size);
 }
 
 int fwctld_release_label(const char *server, unsigned long long publication, char label[128])
@@ -132,14 +133,14 @@ static int report(const char *server, struct ota_report *r, const char *phase, u
         "--noproxy", "*", "--proto", "=http,https", "--connect-timeout", "5", "--max-time", "15",
         "--header", "X-OTA-Request: 1", "--header", "Content-Type: text/plain",
         "--data-binary", text, "--url", url, NULL};
-    if (ota_run(args, response, sizeof(response)) || strcmp(response, "ok\n")) return -1;
+    if (fwctld_request(args, response, sizeof(response)) || strcmp(response, "ok\n")) return -1;
     /* Persist every phase, but local boot confirmation already has one owner. */
     if (!strcmp(phase, "boot-testing") || !strcmp(phase, "success") || !strcmp(phase, "up-to-date")) return 0;
     char label[128];
     if (fwctld_release_label(server, r->publication, label))
         snprintf(label, sizeof(label), "v%u.%u.%u / identity-unavailable", r->version >> 16, (r->version >> 8) & 255, r->version & 255);
-    fwctld_log("OTA firmware %s: %s (running=v%u.%u.%u, publication #%llu)",
-        label, phase, running >> 16, (running >> 8) & 255, running & 255, r->publication);
+    fwctld_log("OTA firmware %s: %s (running=v%u.%u.%u)",
+        label, phase, running >> 16, (running >> 8) & 255, running & 255);
     return 0;
 }
 
@@ -212,8 +213,8 @@ int fwctld_auto_install(const char *server, const char *cache, const char *devic
     if (ota_path(path, cache, relative)) return -1;
     char label[128];
     if (fwctld_release_label(server, publication, label)) return -1;
-    fwctld_log("Preparing installation: v%u.%u.%u -> %s, deployment %u (publication #%llu)",
-        floor >> 16, (floor >> 8) & 255, floor & 255, label, r.target, publication);
+    fwctld_log("Preparing installation: v%u.%u.%u -> %s, deployment %u",
+        floor >> 16, (floor >> 8) & 255, floor & 255, label, r.target);
     if (report(server, &r, "installing", s.version[s.booted])) return -1;
     fwctld_log("Installing firmware into inactive deployment %u; do not power off", r.target);
     char *args[] = {"fwctl", "update", path, NULL};

@@ -45,3 +45,4 @@ files document their expected names.
 - [v0.0.1 / 4a7e87c2 OTA 验证记录](releases/v0.0.1-4a7e87c2.md)
 - [v0.0.1 / e993e58c OTA 验证记录](releases/v0.0.1-e993e58c.md)
 - [v0.0.1 / 6cee5c9d OTA 验证记录](releases/v0.0.1-6cee5c9d.md)
+- [v0.0.1 / 5ad4aa1e OTA 验证记录](releases/v0.0.1-5ad4aa1e.md)

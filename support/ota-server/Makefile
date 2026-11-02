@@ -24,6 +24,7 @@ test: all
 	python3 ./tests/test-auto.py
 	python3 ./tests/test-init.py
 	python3 ./tests/test-network.py
+	python3 ./tests/test-device-context.py
 	python3 ./tests/test-history.py
 	python3 ./tests/test-quarantine.py
 	python3 ./tests/test-shutdown.py

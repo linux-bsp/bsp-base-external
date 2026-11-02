@@ -76,10 +76,11 @@ class AutomaticOTA(unittest.TestCase):
             try:
                 until(download_wait.exists)
                 for dest in (log,console):
-                    text=dest.read_text();self.assertRegex(text, r'Discovered firmware v1\.0\.1 / [0-9a-f]{8} \(')
+                    text=dest.read_text();self.assertRegex(text, r'Discovered firmware v1\.0\.1 / [0-9a-f]{8};')
                     self.assertNotRegex(text, r'v1\.0\.1 / [0-9a-f]{9}')
                     self.assertIn('[fwctld] [INFO] Discovered firmware',text)
                     self.assertNotIn('====',text)
+                    self.assertNotIn('publication #',text)
                     self.assertIn('Downloading kernel.itb',text)
                     self.assertNotIn('Downloaded and SHA256-verified',text)
                 self.assertIsNone(proc.poll())
@@ -128,6 +129,23 @@ class AutomaticOTA(unittest.TestCase):
         self.assertFalse(self.unexpected_download.exists())
         self.assertFalse((self.root/'cache/1').exists())
         self.assertEqual(self.calls.read_text(), 'install\nreboot\n')
+
+    def test_request_context_survives_reboot_and_health_confirmation(self):
+        import socket
+        self.agent()
+        rows=self.state()['device_history'][0]['network']
+        self.assertIn('requested', [r['phase'] for r in rows])
+        self.assertIn('installing', [r['phase'] for r in rows])
+        for row in rows:
+            self.assertEqual(row['hostname'],socket.gethostname())
+            self.assertEqual(row['peer_ip'],'127.0.0.1')
+            self.assertNotEqual(row['ip'],'unknown')
+            self.assertRegex(row['mac'],r'^(?:[0-9a-f]{2}:){5}[0-9a-f]{2}$')
+        self.snapshot.write_text('FWOTA1 1 1 255 65536 1 4 65537 1 4\n')
+        self.agent()
+        rows=self.state()['device_history'][0]['network']
+        self.assertIn('success',[r['phase'] for r in rows])
+        self.assertIn('requested',[r['phase'] for r in rows])
 
     def test_storage_error_reported_separately(self):
         fw = self.bin/'fwctl'

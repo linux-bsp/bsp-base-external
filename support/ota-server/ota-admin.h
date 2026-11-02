@@ -5,6 +5,15 @@
 #include <stdio.h>
 #define OTA_UPLOAD_MAX (512ULL * 1024 * 1024)
 struct ota_report;
+struct ota_network_context {
+    const char *ip, *mac, *hostname, *boot;
+    char peer_ip[46];
+};
+int ota_network_valid(const struct ota_network_context *network);
+int ota_catalog_request(const char *root, const char *device, unsigned long long publication,
+                        const char *transaction, const char *phase, const struct ota_network_context *network);
+int ota_catalog_network_json(const char *root, FILE *out, const struct ota_report *report);
+
 struct ota_catalog_identity {
     unsigned long version;
     long long uploaded_at;

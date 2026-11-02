@@ -148,9 +148,11 @@ int ota_history_json(const char *root, FILE *out)
             fprintf(out, "%s{\"device\":\"%s\",\"publication\":%llu,\"version\":%u,"
                 "\"target\":%u,\"source_boot\":\"%s\",\"product\":\"%s\",\"layout\":\"%s\","
                 "\"running\":%u,\"phase\":\"%s\",\"started\":%lld,\"updated\":%lld,"
-                "\"imported\":%s,\"events\":[%s],\"category\":\"%s\",\"reason\":\"%s\"}", count++ ? "," : "", r->device,
+                "\"imported\":%s,\"events\":[%s],\"category\":\"%s\",\"reason\":\"%s\",\"network\":[", count++ ? "," : "", r->device,
                 r->publication, r->version, r->target, r->boot, r->product, r->layout,
                 r->running, r->phase, h.first, h.updated, h.imported ? "true" : "false", events, ota_report_category(r), r->reason[0] ? r->reason : "not-reported");
+            if (ota_catalog_network_json(root, out, r)) { free(events); rc = -1; break; }
+            fputs("]}", out);
             free(events);
         }
         closedir(records);
