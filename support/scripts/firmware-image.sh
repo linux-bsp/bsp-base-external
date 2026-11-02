@@ -67,7 +67,7 @@ for ITS_PATH in ${ITS_LIST}; do
 		"${ITS_SOURCE}" >"${ITS_OUTPUT}"
 done
 
-PATH="${HOST_DIR}/bin:${PATH}" GENIMAGE_MKIMAGE="${MKIMAGE}" support/scripts/genimage.sh -c "${GENIMAGE_CFG}"
+PATH="${HOST_DIR}/bin:${HOST_DIR}/sbin:${PATH}" GENIMAGE_MKIMAGE="${MKIMAGE}" support/scripts/genimage.sh -c "${GENIMAGE_CFG}"
 
 # A recovery ramdisk must still fit in the fixed kernel slot.
 if [ -f "${BINARIES_DIR}/recovery.cpio.gz" ]; then
@@ -86,7 +86,7 @@ if [ -f "${RELEASE_TEMPLATE}" ]; then
 fi
 
 if [ -f "${MEDIA_CFG}" ]; then
-	PATH="${HOST_DIR}/bin:${PATH}" support/scripts/genimage.sh -c "${MEDIA_CFG}"
+	PATH="${HOST_DIR}/bin:${HOST_DIR}/sbin:${PATH}" support/scripts/genimage.sh -c "${MEDIA_CFG}"
 fi
 
 for ITS_PATH in ${ITS_LIST}; do
