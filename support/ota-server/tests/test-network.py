@@ -102,7 +102,7 @@ void freeifaddrs(struct ifaddrs *p) { (void)p; }
                 self.assertFalse(self.calls.exists())
                 self.state.write_text('up')
                 wait_for(lambda:self.calls.exists())
-                self.assertIn('Network ready: test0',log.read_text())
+                self.assertNotIn('Network ready:',log.read_text())
                 self.state.write_text('down')
                 wait_for(lambda:log.read_text().count('Waiting for network')==2)
                 count=self.calls.read_text()

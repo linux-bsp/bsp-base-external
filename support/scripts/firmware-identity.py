@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import struct
 import subprocess
@@ -31,8 +32,36 @@ def factory_record(identity, components, sequence):
     return record
 
 
+def align_kernel_dtb(host, fit, dtb):
+    """Inline DTB addresses must be 8-byte aligned for the deployed U-Boot."""
+    data = dtb.read_bytes()
+    if len(data) < 40 or data[:4] != bytes.fromhex('d00dfeed'):
+        raise ValueError('invalid kernel DTB')
+    def offset():
+        blob = fit.read_bytes()
+        at = blob.find(data)
+        if at < 0 or blob.find(data, at + 1) >= 0:
+            raise ValueError('kernel FIT must contain exactly one matching inline DTB')
+        return at
+    at = offset()
+    if at % 8 == 4:
+        # An empty root property occupies 12 bytes in the structure block.
+        # Payloads and their hashes stay intact; content ID is generated later.
+        subprocess.run([str(host/'bin/fdtput'), '-t', 'x', str(fit), '/',
+                        'fw,dtb-alignment-padding'], check=True)
+        if offset() % 8 == 4:
+            subprocess.run([str(host/'bin/fdtput'), '-t', 'x', str(fit), '/',
+                            'fw,dtb-alignment-padding', '0'], check=True)
+    if offset() % 8:
+        raise ValueError('kernel FIT DTB alignment failed')
+    if fit.stat().st_size > 24 * 1024 * 1024:
+        raise ValueError('kernel FIT exceeds 24 MiB slot after alignment')
+
+
 def render(host, images, template, output):
     binary = host/'bin'
+    if os.environ.get('FW_DTB_FILE'):
+        align_kernel_dtb(host, images/'release/kernel.itb', images/os.environ['FW_DTB_FILE'])
     def prop(path, node, key, kind='s'):
         return subprocess.check_output([str(binary/'fdtget'), '-t', kind, str(path), node, key], text=True).strip()
     def digest(data): return hashlib.sha256(data).hexdigest()

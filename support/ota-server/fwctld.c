@@ -43,7 +43,7 @@ static int download(const char *url, const char *path, unsigned long long limit,
 static int poll_release(const char *server, const char *cache, const char *product, const char *layout,
                         int auto_install, int force, const char *device)
 {
-    static unsigned long long last_skipped, last_blocked;
+    static unsigned long long last_blocked;
     static int waiting;
     char temp[OTA_PATH], path[OTA_PATH], url[OTA_PATH], current[OTA_PATH], dest[OTA_PATH], name[64];
     struct release r, old;
@@ -78,14 +78,10 @@ static int poll_release(const char *server, const char *cache, const char *produ
         int matches = fwctld_image_matches(server, r.version);
         if (matches < 0) { fwctld_log("Firmware identity comparison failed"); goto done; }
         if (matches) {
-            if (last_skipped != r.version)
-                fwctld_log("Firmware %s: installed version and SHA256 match; no upgrade needed", label);
-            last_skipped = r.version;
             rc = 1;
             goto done;
         }
     }
-    last_skipped = 0;
     if (force) fwctld_log("Force recovery requested for firmware %s; downloading and reinstalling", label);
     if (ota_path(current, cache, "current"))
         goto done;
@@ -253,8 +249,6 @@ int main(int argc, char **argv)
             rc = 1;
             goto wait_for_next_check;
         }
-        if (waiting_for_network)
-            fwctld_log("Network ready: %s; resuming OTA checks", interface);
         waiting_for_network = 0;
         const char *stage = "transaction reconciliation";
         rc = auto_install ? fwctld_auto_reconcile(base, device, product, layout) : 0;

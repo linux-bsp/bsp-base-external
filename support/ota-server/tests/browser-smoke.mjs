@@ -102,7 +102,9 @@ try {
     },'latest publication');
     await until(()=>evaluate(`document.querySelector('#current-version').textContent===${JSON.stringify(expectedTag)} && !document.querySelector('[data-publish]')`),'published UI');
     const after=await (await fetch(url+'/api/state')).json();
-    assert(await evaluate("document.querySelector('.workspace-left').getBoundingClientRect().right < document.querySelector('.workspace-right').getBoundingClientRect().left"),'Desktop columns');
+    assert(await evaluate("document.querySelector('.upload-main').getBoundingClientRect().right < document.querySelector('.upload-sidebar').getBoundingClientRect().left"),'Upload sidebar');
+    assert(await evaluate("document.querySelector('#drafts-table').closest('.card').getBoundingClientRect().width > document.querySelector('#panel-manage').getBoundingClientRect().width-2"),'Full width publishing');
+    assert(await evaluate("!document.querySelector('#panel-manage').textContent.includes('01 /') && !document.querySelector('#panel-manage').textContent.includes('02 /')"));
     for(const tab of ['history','releases','audit','manage']){
         await evaluate(`document.querySelector('#tab-${tab}').click()`);
         assert(await evaluate(`!document.querySelector('#panel-${tab}').hidden && document.querySelectorAll('[role=tabpanel]:not([hidden])').length===1`),'Tab '+tab);
@@ -134,5 +136,5 @@ try {
     if(ws)ws.close();
     browser.kill('SIGTERM');
     await new Promise(resolve=>{if(browser.exitCode!==null)resolve();else browser.once('exit',resolve);});
-    await rm(profile,{recursive:true,force:true});
+    await rm(profile,{recursive:true,force:true,maxRetries:5,retryDelay:100});
 }

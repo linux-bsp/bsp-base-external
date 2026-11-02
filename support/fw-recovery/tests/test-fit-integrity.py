@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Verify the actual generated FIT with the production EDK parser; mutate only copies."""
 import os
+import importlib.util
 from pathlib import Path
 import shutil
 import subprocess
@@ -53,6 +54,24 @@ int main(int argc, char **argv) {
             subprocess.run([str(HOST/'bin/fdtput'),'-d',str(missing),'/configurations/conf-1','ramdisk'],check=True)
             self.assertNotEqual(subprocess.run([str(binary),str(missing)]).returncode,0)
 
+    def test_inline_dtb_alignment_is_repeatable(self):
+        spec=importlib.util.spec_from_file_location('identity_generator',WORKSPACE/'bsp-base-external/support/scripts/firmware-identity.py')
+        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        dtb=next(IMAGES.glob('verity-*.dtb'))
+        data=dtb.read_bytes()
+        with tempfile.TemporaryDirectory(prefix='fit-alignment-') as name:
+            base=Path(name)
+            for index in range(2):
+                fit=base/f'{index}.itb';shutil.copyfile(IMAGES/'release/kernel.itb',fit)
+                if index:subprocess.run([str(HOST/'bin/fdtput'),'-t','x',str(fit),'/', 'test-padding'],check=True)
+                before=fit.read_bytes().find(data)
+                self.assertIn(before%8,(0,4))
+                module.align_kernel_dtb(HOST,fit,dtb)
+                self.assertEqual(fit.read_bytes().find(data)%8,0)
+                aligned=fit.read_bytes()
+                module.align_kernel_dtb(HOST,fit,dtb)
+                self.assertEqual(fit.read_bytes(),aligned)
+
     def test_real_rootfs_fit_repair_on_regular_file(self):
         import hashlib
         with tempfile.TemporaryDirectory(prefix='fw-real-restore-') as name:
@@ -83,7 +102,7 @@ int main(int argc,char **argv) {
     assert(!edk_fw_close(handle));return 0;
 }
 ''')
-            modules=['edk_fw.c','edk_fw_recovery.c','edk_fw_fit.c','edk_fw_layout.c',
+            modules=['edk_fw.c','edk_fw_identity.c','edk_fw_recovery.c','edk_fw_fit.c','edk_fw_layout.c',
                 'edk_fw_metadata.c','edk_fw_storage.c','edk_fw_storage_block.c','edk_fw_storage_mtd.c']
             subprocess.run(['cc','-D_POSIX_C_SOURCE=200809L','-std=c11','-Wall','-Wextra','-Werror',
                 '-I'+str(EDK/'src'),'-I'+str(EDK/'include'),'-I'+str(EDK.parent/'common'),'-I'+str(FDT),'-I'+str(HOST/'include'),str(source)] +

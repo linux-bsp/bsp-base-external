@@ -2,3 +2,6 @@
 /board/ti/am625/rootfs-overlay/etc/libbmc/xfusion.password
 /board/ti/am625/rootfs-overlay/etc/libbmc/supermicro.password
 /board/ti/am625/rootfs-overlay/etc/edk/pdebug-web.token
+
+# Python validation/import cache.
+__pycache__/

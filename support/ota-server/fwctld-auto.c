@@ -133,6 +133,8 @@ static int report(const char *server, struct ota_report *r, const char *phase, u
         "--header", "X-OTA-Request: 1", "--header", "Content-Type: text/plain",
         "--data-binary", text, "--url", url, NULL};
     if (ota_run(args, response, sizeof(response)) || strcmp(response, "ok\n")) return -1;
+    /* Persist every phase, but local boot confirmation already has one owner. */
+    if (!strcmp(phase, "boot-testing") || !strcmp(phase, "success") || !strcmp(phase, "up-to-date")) return 0;
     char label[128];
     if (fwctld_release_label(server, r->publication, label))
         snprintf(label, sizeof(label), "v%u.%u.%u / identity-unavailable", r->version >> 16, (r->version >> 8) & 255, r->version & 255);
