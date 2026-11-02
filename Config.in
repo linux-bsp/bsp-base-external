@@ -3,12 +3,7 @@ menu "BSP base external board options"
 source "$BR2_EXTERNAL_LINUX_BSP_PATH/package/edk/Config.in"
 source "$BR2_EXTERNAL_LINUX_BSP_PATH/package/libbmc/Config.in"
 
-source "$BR2_EXTERNAL_LINUX_BSP_PATH/package/fwctld/Config.in"
-
-source "$BR2_EXTERNAL_LINUX_BSP_PATH/package/fw-recovery/Config.in"
-
-source "$BR2_EXTERNAL_LINUX_BSP_PATH/package/fwctl/Config.in"
-source "$BR2_EXTERNAL_LINUX_BSP_PATH/package/logctl/Config.in"
-source "$BR2_EXTERNAL_LINUX_BSP_PATH/package/device-server/Config.in.host"
+source "$BR2_EXTERNAL_LINUX_BSP_PATH/package/device-manager/Config.in"
+source "$BR2_EXTERNAL_LINUX_BSP_PATH/package/device-manager/Config.in.host"
 
 endmenu

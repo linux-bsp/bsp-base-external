@@ -1,9 +1,0 @@
-config BR2_PACKAGE_LOGCTL
-    bool "logctl / logctld device boot logs"
-    depends on BR2_USE_MMU
-    select BR2_PACKAGE_LIBCURL
-    select BR2_PACKAGE_CA_CERTIFICATES
-    help
-      Bounded per-boot logging, early boot handoff, pstore archival, export
-      and optional authenticated HTTP(S) log forwarding.
-      Mount existing storage only; never formats a device during boot.

@@ -33,13 +33,15 @@ def check(image, qemu, expect_broken=False):
             return subprocess.run([str(qemu), '-L', str(root), str(loader),
                 '--inhibit-cache'] + (['--list'] if listing else []) +
                 [str(root/program), *args], env=env, capture_output=True, text=True, timeout=15)
-        result = run('usr/sbin/fw-init')
+        result = run('usr/sbin/fwctl', 'init')
         if expect_broken:
-            assert result.returncode == 127 and 'libcrypto.so.3' in result.stderr, result
-            print('PASS: original initramfs reproduces missing libcrypto.so.3 (exit 127)')
+            assert result.returncode == 127 and 'error while loading shared libraries' in result.stderr, result
+            print('PASS: original initramfs reproduces a missing shared library (exit 127)')
             return
         assert result.returncode == 2 and 'PID 1' in result.stderr, result
-        for program in ('usr/sbin/fw-init', 'usr/sbin/fwctl', 'usr/bin/curl', 'bin/busybox'):
+        result = run('usr/sbin/fwctl', 'recovery', 'check-root', '/missing', '/missing')
+        assert result.returncode == 2, result
+        for program in ('usr/sbin/fwctl', 'usr/bin/curl', 'bin/busybox'):
             result = run(program, listing=True)
             assert result.returncode == 0 and 'not found' not in result.stdout + result.stderr, result
         result = run('usr/bin/curl', '--version')
@@ -48,9 +50,9 @@ def check(image, qemu, expect_broken=False):
         assert result.returncode == 0, result
         # A file-existence test cannot catch this regression; the target loader must fail.
         (root/'usr/lib64').unlink()
-        result = run('usr/sbin/fw-init')
-        assert result.returncode == 127 and 'libcrypto.so.3' in result.stderr, result
-        print('PASS: actual ARM64 fw-init/curl/BusyBox execution, all ELF dependencies, missing-alias regression')
+        result = run('usr/sbin/fwctl', 'init')
+        assert result.returncode == 127 and 'error while loading shared libraries' in result.stderr, result
+        print('PASS: actual ARM64 fwctl/curl/BusyBox execution, all ELF dependencies, missing-alias regression')
 
 
 if __name__ == '__main__':

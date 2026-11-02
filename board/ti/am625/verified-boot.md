@@ -2,20 +2,20 @@
 
 ## 启动与恢复流程
 
-正常 eMMC 启动采用 `U-Boot → kernel FIT → fw-init → dm-verity → switch_root → 正式系统`。
+正常 eMMC 启动采用 `U-Boot → kernel FIT → /init 脚本 → fwctl init → dm-verity → switch_root → 正式系统`。
 恢复环境在 RAM 中运行，PDM、业务服务和磁盘上的 rootfs 都不是它的前提。
 
 1. U-Boot 按 deployment 读取 kernel FIT，验证 kernel、设备树和 recovery ramdisk 的哈希。
 2. `fw verity-args` 验证参数并确认 FIT 包含 ramdisk，设置 `rdinit=/init`。
    环境 schema 为 7；正常启动不再通过 `dm-mod.create` 提前创建根映射。
-3. initramfs 中的 C 程序 `/init → /usr/sbin/fw-init` 挂载运行时文件系统，维护看门狗，
-   从 `fwctl recovery-status` 获取本次启动的 deployment 与 rootfs 槽。
+3. initramfs 中的 脚本 `/init` 执行 `/usr/sbin/fwctl init` 挂载运行时文件系统，维护看门狗，
+   从 `fwctl recovery status` 获取本次启动的 deployment 与 rootfs 槽。
 4. 完整读取当前 rootfs 的有效 payload（SquashFS 数据、对齐填充、verity 哈希树），
    比较 kernel FIT 设备树中绑定的 SHA256。分区尾部未使用空间不参与比较。
-5. 校验通过后，fw-init 通过 device-mapper ioctl 建立只读 verity 设备，挂载到 `/newroot`，
+5. 校验通过后，fwctl 通过 device-mapper ioctl 建立只读 verity 设备，挂载到 `/newroot`，
    移交 `/dev`、`/proc`、`/sys`、`/run`，使用 BusyBox `switch_root` 启动正式 `/sbin/init`。
    后续读取仍由 dm-verity 检查；读错误或损坏会重启，下一次启动重新完整检查。
-6. 校验失败时先调用 `fwctl recovery-fallback`。只有另一 deployment 已确认、内核完整、
+6. 校验失败时先调用 `fwctl recovery fallback`。只有另一 deployment 已确认、内核完整、
    且包含恢复 ramdisk 和 rootfs 身份信息时才切换，并重启加载另一套内核/rootfs。
    当前故障 deployment 标为 failed，避免两槽之间不断往返。
 7. 没有合格备用 deployment 时，配置网络，向 OTA server 请求**准确内容**的 rootfs FIT，
@@ -27,7 +27,7 @@
 
 ## 镜像与构建
 
-- `recovery.cpio.gz`：fw-init、BusyBox、fwctl、curl、必要 ELF 依赖和恢复配置。
+- `recovery.cpio.gz`：fwctl、BusyBox、curl、必要 ELF 依赖和恢复配置。
   不包含 PDM 模块、业务进程或完整 rootfs。
 - `rootfs-verity.squashfs`：4096 字节对齐的 rootfs 数据，后接 SHA256 哈希树，无 verity superblock。
 - `verity-<原DTB>`：保存 root hash、salt、数据/哈希块数，以及完整 payload 的长度和 SHA256。
@@ -46,9 +46,9 @@ make -C buildroot O="$PWD/output/am625" alientek_am62x_defconfig
 make -C buildroot O="$PWD/output/am625" all
 ```
 
-新增 `BR2_PACKAGE_FW_RECOVERY=y`，依赖现有 EDK firmware、BusyBox、curl 和 OpenSSL。
+恢复入口已纳入 `BR2_PACKAGE_DEVICE_MANAGER_FWCTL=y`；initramfs 仍需 BusyBox、curl 和 OpenSSL。
 内核内置 initrd/gzip、device-mapper、dm-verity、SHA256；不依赖磁盘模块来挂载根文件系统。
-已有自定义 `.config` 应保留其设置，启用新选项后重新配置 linux、EDK、fw-recovery 和 U-Boot。
+已有自定义 `.config` 应保留其设置，启用新选项后重新配置 linux、device-manager 和 U-Boot。
 生成文件默认位于 `output/am625/images/`。
 
 ## 恢复配置与服务器
@@ -148,7 +148,7 @@ python3 bsp-base-external/support/fw-recovery/tests/test-loader.py \
   --image output/am625/images/recovery.cpio.gz
 ```
 
-测试禁止依赖主机库路径或 ld.so.cache，执行 fw-init、curl、BusyBox，并检查 fwctl
+测试禁止依赖主机库路径或 ld.so.cache，执行 fwctl init、curl 和 BusyBox
 完整依赖。移除库目录别名必须复现 exit 127；原始 1.0.11 包可加 `--expect-broken`。
 这验证动态加载与入口程序，不替代 AM625 上 PID 1、watchdog、dm-verity 和 switch_root 的完整启动验证。
 
@@ -206,4 +206,4 @@ FIT 内嵌设备树可能只有 4 字节对齐，解析前复制到满足 libfdt
 两种对齐，避免 ramdisk 大小变化导致正常固件被拒绝。
 这些本地测试不替代 AM625 实机的首次启动、A/B 升级、掉电与回滚验证。
 
-启动日志中的固件 ID 与 FIT 哈希仅显示前 8 位；元数据、设备树、OTA 协议和内容比较仍使用完整 SHA-256。initramfs 在根分区设备节点出现前等待探测，不提前调用 recovery-status。合法旧元数据缺少身份时输出 identity=unknown (legacy metadata) 并正常返回；元数据不可读、损坏或身份不一致仍报错。
+启动日志中的固件 ID 与 FIT 哈希仅显示前 8 位；元数据、设备树、OTA 协议和内容比较仍使用完整 SHA-256。initramfs 在根分区设备节点出现前等待探测，不提前调用 `fwctl recovery status`。合法旧元数据缺少身份时输出 identity=unknown (legacy metadata) 并正常返回；元数据不可读、损坏或身份不一致仍报错。

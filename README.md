@@ -61,4 +61,4 @@ its boot service is disabled until explicitly configured.
 
 板级构建已接入 [initramfs + rootfs A/B](board/ti/am625/verified-boot.md)，包含完整性检查、备用 deployment 回退和按内容哈希恢复 rootfs。
 
-Build host tools with `make -C buildroot O="$PWD/output/am625" host-device-server` from the workspace. The package installs `device-server` and `ota-cli` under `output/am625/host/bin/`. Device packages are `fwctl`, `fwctld` and `logctl`.
+Build host tools with `make -C buildroot O="$PWD/output/am625" host-device-manager` from the workspace. The package installs `device-server` and `ota-cli` under `output/am625/host/bin/`. Target-side `fwctl` (including initramfs recovery), `fwctld` and `logctl` are selectable outputs of the same `device-manager` package.

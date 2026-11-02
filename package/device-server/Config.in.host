@@ -1,5 +1,0 @@
-config BR2_PACKAGE_HOST_DEVICE_SERVER
-    bool "host device-server (Device Manager)"
-    help
-      Build the C device management server and OTA CLI for the build host.
-      Installs host/bin/device-server and host/bin/ota-cli, never target tools.

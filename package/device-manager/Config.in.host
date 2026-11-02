@@ -1,0 +1,20 @@
+config BR2_PACKAGE_HOST_DEVICE_MANAGER
+    bool "host Device Manager tools"
+    help
+      Select tools built for the development host from the same source.
+
+if BR2_PACKAGE_HOST_DEVICE_MANAGER
+
+config BR2_PACKAGE_HOST_DEVICE_MANAGER_SERVER
+    bool "device-server"
+    default y
+    help
+      Install the Device Manager Web and OTA server to host/bin.
+
+config BR2_PACKAGE_HOST_DEVICE_MANAGER_OTA_CLI
+    bool "ota-cli"
+    default y
+    help
+      Install the OTA publication CLI to host/bin.
+
+endif

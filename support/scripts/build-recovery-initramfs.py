@@ -81,7 +81,7 @@ def build(target, board, host, output):
                 alias.parent.mkdir(parents=True, exist_ok=True)
                 alias.symlink_to(os.path.relpath(root/canonical, alias.parent))
 
-        for name in ('bin/busybox','usr/sbin/fw-init','usr/sbin/fwctl','usr/bin/curl','etc/device-manager/firmware.conf','etc/network/interfaces','usr/share/udhcpc/default.script'):
+        for name in ('bin/busybox','usr/sbin/fwctl','usr/bin/curl','etc/device-manager/firmware.conf','etc/network/interfaces','usr/share/udhcpc/default.script'):
             copy(name)
         config={}
         for line in (root/'etc/device-manager/firmware.conf').read_text().splitlines():
@@ -107,7 +107,8 @@ def build(target, board, host, output):
         shutil.copyfile(board/'recovery.conf',root/'etc/fw-recovery.conf')
         (root/'etc/fw-recovery.conf').chmod(0o644)
         (root/'etc/resolv.conf').write_text('')
-        (root/'init').symlink_to('/usr/sbin/fw-init')
+        shutil.copyfile(Path(__file__).with_name('recovery-init'), root/'init')
+        (root/'init').chmod(0o755)
         # Required handoff and network applets must be provided by BusyBox config.
         for name in ('bin/sh','sbin/switch_root','sbin/ifup','sbin/ifdown'):
             if not (root/name).is_symlink(): raise RuntimeError('required BusyBox applet missing: '+name)

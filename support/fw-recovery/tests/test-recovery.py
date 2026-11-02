@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Host checks of real recovery binary, verity images and initramfs artifacts."""
+"""Exercise recovery C logic with a host test entry and real initramfs artifacts."""
 import gzip
 import hashlib
 import importlib.util
@@ -11,9 +11,9 @@ import subprocess
 import tempfile
 import unittest
 
-SOURCE=Path(__file__).resolve().parents[1]
-EXTERNAL=SOURCE.parents[1]
+EXTERNAL=Path(__file__).resolve().parents[3]
 WORKSPACE=EXTERNAL.parent
+SOURCE=WORKSPACE/"device-manager"
 HOST=Path(os.environ.get('HOST_DIR',WORKSPACE/'output/am625/host'))
 TARGET=Path(os.environ.get('TARGET_DIR',WORKSPACE/'output/am625/target'))
 BUILDER=EXTERNAL/'support/scripts/build-recovery-initramfs.py'
@@ -42,8 +42,28 @@ def cpio_entries(path):
 class Recovery(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        subprocess.run(['make','-C',str(SOURCE),'CPPFLAGS=-I'+str(HOST/'include'),
-            'LDFLAGS=-L'+str(HOST/'lib')+' -Wl,-rpath,'+str(HOST/'lib')],check=True,stdout=subprocess.DEVNULL)
+        cls.native_dir=tempfile.TemporaryDirectory(prefix='fwctl-recovery-native-')
+        root=Path(cls.native_dir.name)
+        wrapper=root/'entry.c'
+        wrapper.write_text(r'''#include <string.h>
+extern int fwctl_recovery_main(int, char **);
+int main(int argc, char **argv) {
+    if (argc == 2 && !strcmp(argv[1], "init"))
+        return fwctl_recovery_main(0, 0);
+    if (argc == 5 && !strcmp(argv[1], "recovery"))
+        return fwctl_recovery_main(3, argv + 2);
+    return 2;
+}
+''')
+        cls.native=root/'fwctl-recovery-test'
+        subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror',
+            '-I'+str(HOST/'include'),str(wrapper),str(SOURCE/'recovery/fw-init.c'),
+            '-L'+str(HOST/'lib'),'-Wl,-rpath,'+str(HOST/'lib'),
+            '-lcrypto','-pthread','-o',str(cls.native)],check=True)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.native_dir.cleanup()
 
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory(prefix='fw-init-test-');self.addCleanup(self.tmp.cleanup)
@@ -60,7 +80,7 @@ class Recovery(unittest.TestCase):
             (self.dt/name).write_bytes(struct.pack('>I',value))
 
     def check(self,image=None):
-        return subprocess.run([str(SOURCE/'fw-init'),'--check-root',str(image or self.image),str(self.dt)],capture_output=True).returncode
+        return subprocess.run([str(self.native),'recovery','check-root',str(image or self.image),str(self.dt)],capture_output=True).returncode
 
     def test_full_payload_and_padding(self):
         self.assertEqual(self.check(),0)
@@ -78,11 +98,11 @@ class Recovery(unittest.TestCase):
         self.assertEqual(self.check(self.dir/'missing'),1)
 
     def test_bad_identity_and_device_rejected(self):
-        result=subprocess.run([str(SOURCE/'fw-init'),'--table','/dev/mmcblk1p14',str(self.dt)],capture_output=True,text=True)
+        result=subprocess.run([str(self.native),'recovery','table','/dev/mmcblk1p14',str(self.dt)],capture_output=True,text=True)
         self.assertEqual(result.returncode,0)
         self.assertIn('1 /dev/mmcblk1p14 /dev/mmcblk1p14 4096 4096',result.stdout)
         self.assertIn('restart_on_corruption restart_on_error',result.stdout)
-        bad=subprocess.run([str(SOURCE/'fw-init'),'--table','/dev/x bad',str(self.dt)],capture_output=True)
+        bad=subprocess.run([str(self.native),'recovery','table','/dev/x bad',str(self.dt)],capture_output=True)
         self.assertEqual(bad.returncode,2)
         (self.dt/'payload-bytes').write_bytes(struct.pack('>I',129*1024*1024))
         self.assertEqual(self.check(),2)
@@ -91,7 +111,7 @@ class Recovery(unittest.TestCase):
     def test_delayed_root_device_discovery(self):
         binary = self.dir/'storage-ready-test'
         subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror',
-            '-I'+str(HOST/'include'), str(SOURCE/'tests/storage-ready-test.c'),
+            '-I'+str(HOST/'include'), str(SOURCE/'recovery/tests/storage-ready-test.c'),
             '-L'+str(HOST/'lib'), '-Wl,-rpath,'+str(HOST/'lib'),
             '-Wl,--wrap=access', '-Wl,--wrap=fork', '-Wl,--wrap=execv',
             '-lcrypto', '-pthread', '-o', str(binary)], check=True)
@@ -101,7 +121,7 @@ class Recovery(unittest.TestCase):
         self.assertIn('PASS:', result.stdout)
 
     def test_pid1_guard(self):
-        result=subprocess.run([str(SOURCE/'fw-init')],capture_output=True)
+        result=subprocess.run([str(self.native),'init'],capture_output=True)
         self.assertEqual(result.returncode,2)
         self.assertIn(b'PID 1',result.stderr)
 
@@ -112,11 +132,11 @@ class Recovery(unittest.TestCase):
                 '--host',str(HOST),'--output',str(output)],check=True,stdout=subprocess.DEVNULL)
         self.assertEqual(one.read_bytes(),two.read_bytes())
         entries=cpio_entries(one)
-        for name in ('init','usr/sbin/fw-init','usr/sbin/fwctl','usr/bin/curl','bin/busybox',
+        for name in ('init','usr/sbin/fwctl','usr/bin/curl','bin/busybox',
                      'etc/device-manager/firmware.conf','etc/fw-recovery.conf','etc/network/interfaces',
                      'sbin/switch_root','sbin/ip','sbin/ifup','var/run','dev/console'):
             self.assertIn(name,entries)
-        self.assertEqual(entries['init'][1],b'/usr/sbin/fw-init')
+        self.assertEqual(entries['init'][1],b'#!/bin/sh\nexec /usr/sbin/fwctl init\n')
         for alias in ('lib64', 'usr/lib64'):
             self.assertEqual(entries[alias][1], b'lib')
             self.assertTrue(stat.S_ISLNK(entries[alias][0][1]))
