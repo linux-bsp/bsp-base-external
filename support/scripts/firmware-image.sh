@@ -39,6 +39,22 @@ if [ -z "${FW_DTB_FILE:-}" ] && [ -n "${BR2_CONFIG:-}" ]; then
 	fi
 fi
 
+# Keep the original kernel DTB intact for network/debug boots.
+if grep -q '"rootfs-verity.squashfs"' "${GENIMAGE_CFG}"; then
+    [ -n "${FW_DTB_FILE:-}" ] || die "FW_DTB_FILE is required for verity"
+    cp "${BINARIES_DIR}/${FW_DTB_FILE}" "${BINARIES_DIR}/verity-${FW_DTB_FILE}"
+    FW_DTB_FILE="verity-${FW_DTB_FILE}"
+    export FW_DTB_FILE
+    "$(dirname -- "$0")/rootfs-verity.sh" "${HOST_DIR}"         "${BINARIES_DIR}/rootfs.squashfs" "${BINARIES_DIR}/rootfs-verity.squashfs"         "${BINARIES_DIR}/${FW_DTB_FILE}"
+fi
+
+# Independent PID 1, tools and ELF dependencies are built from finalized TARGET_DIR.
+if grep -q '"recovery.cpio.gz"' "${GENIMAGE_CFG}"; then
+    "${HOST_DIR}/bin/python3" "$(dirname -- "$0")/build-recovery-initramfs.py" \
+        --target "${TARGET_DIR}" --host "${HOST_DIR}" \
+        --board "${CONFIG_DIR}/.." --output "${BINARIES_DIR}/recovery.cpio.gz"
+fi
+
 ITS_LIST="$(sed -n "s#^[[:space:]]*its[[:space:]]*=[[:space:]]*\"\([^\"]*\)\".*#\1#p" "${GENIMAGE_CFG}" | sort -u)"
 FW_BUILD_TIME_MINUTES="$(($(date +%s) / 60))"
 
@@ -53,15 +69,14 @@ done
 
 PATH="${HOST_DIR}/bin:${PATH}" GENIMAGE_MKIMAGE="${MKIMAGE}" support/scripts/genimage.sh -c "${GENIMAGE_CFG}"
 
-if [ -f "${RELEASE_TEMPLATE}" ]; then
-	command -v sha256sum >/dev/null 2>&1 || die "sha256sum is not available"
-	KERNEL_SHA256="$(sha256sum "${BINARIES_DIR}/release/kernel.itb" | cut -d ' ' -f 1)"
-	ROOTFS_SHA256="$(sha256sum "${BINARIES_DIR}/release/rootfs.itb" | cut -d ' ' -f 1)"
-	RELEASE_ITS="${BINARIES_DIR}/release/release.its"
+# A recovery ramdisk must still fit in the fixed kernel slot.
+if [ -f "${BINARIES_DIR}/recovery.cpio.gz" ]; then
+    [ "$(stat -c %s "${BINARIES_DIR}/release/kernel.itb")" -le 25165824 ] || die "kernel FIT exceeds 24 MiB slot"
+fi
 
-	sed -e "s/@KERNEL_SHA256@/${KERNEL_SHA256}/g" \
-	    -e "s/@ROOTFS_SHA256@/${ROOTFS_SHA256}/g" \
-	    "${RELEASE_TEMPLATE}" >"${RELEASE_ITS}"
+if [ -f "${RELEASE_TEMPLATE}" ]; then
+    RELEASE_ITS="${BINARIES_DIR}/release/release.its"
+    "${HOST_DIR}/bin/python3" "$(dirname -- "$0")/firmware-identity.py"         --host "${HOST_DIR}" --images "${BINARIES_DIR}"         --template "${RELEASE_TEMPLATE}" --output "${RELEASE_ITS}"
 	if ! "${MKIMAGE}" -f "${RELEASE_ITS}" \
 		"${BINARIES_DIR}/release/release.itb"; then
 		rm -f "${RELEASE_ITS}"

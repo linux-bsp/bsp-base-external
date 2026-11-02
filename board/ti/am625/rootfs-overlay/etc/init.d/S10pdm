@@ -52,12 +52,26 @@ start()
 stop()
 {
 	printf 'Stopping PDM: '
+	module_loaded || { echo "OK (not loaded)"; return 0; }
 
-	if module_loaded && ! modprobe -r "$MODULE"; then
-		echo "FAIL"
-		return 1
-	fi
-	echo "OK"
+	# A terminated process may still be releasing its device file descriptors.
+	for attempt in 1 2 3; do
+		if modprobe -r "$MODULE"; then
+			echo "OK"
+			return 0
+		fi
+		[ "$attempt" -eq 3 ] || sleep 1
+	done
+	echo "FAIL (module still in use; keeping CAN up)"
+	[ ! -r "$SYS_MODULE/refcnt" ] || { printf 'PDM reference count: '; cat "$SYS_MODULE/refcnt"; }
+	for fd in /proc/[0-9]*/fd/*; do
+		target=$(readlink "$fd" 2>/dev/null) || continue
+		case "$target" in
+			/dev/pdm/*|/dev/pdm_manager|/sys/kernel/debug/pdm/*)
+				echo "PDM holder: $fd -> $target" ;;
+		esac
+	done
+	return 1
 }
 
 status()

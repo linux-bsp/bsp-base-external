@@ -1,111 +1,461 @@
-# BSP OTA：发布版本与设备主动下载
+# BSP OTA：自动升级、结果上报与内核恢复
 
-这一版提供两个 C 可执行程序，代码放在 `bsp-base-external`，不依赖 SadBoard：
+服务端和设备端均为 C 可执行程序，代码位于 `bsp-base-external`。
 
-- `ota-server`：提供 HTTP 下载和简单网页；`publish` 子命令发布固件快照。
-- `ota-agent`：设备定期查询最新发布，下载到本地，校验大小和 SHA256。默认每 60 秒检查一次，失败后下次重试。
+- `ota-server`：提供固件上传与发布管理网页，以及设备查询/下载接口。
+- `ota-cli`：C 命令行客户端，通过 HTTP 查看状态、上传固件包和发布草稿，适合 SSH/无图形界面环境。
+- `fwctld`：定期检查发布，下载校验后调用 `fwctl` 安装、重启，并在新系统健康确认后上报结果。
 
-流程：构建固件 → 发布 → 设备轮询 → 下载并校验 → 手动 `fwctl update` → 按需重启 → 现有健康检查确认启动。
+完整流程：**上传 → 校验并保存草稿 → 发布 → 设备下载校验 → 写入备用槽 → 重启 → 健康确认 → 上报成功**。只有启用自动安装的新版 fwctld 执行完整流程；旧版设备仍只下载。
 
-## 1. 编译并发布
+## 启动管理服务
 
-以下命令从 `~/workspaces/am62x` 执行。编译只需要 C 编译器和 make；发布时需要 `sha256sum`、`fdtget`，设备下载需要 `curl` 和 `sha256sum`。程序通过参数数组执行工具，不通过 shell 拼接命令。
+从 BSP workspace 根目录执行。构建需要 C 编译器、make、od、awk 和 zlib 开发文件；服务运行需要 `sha256sum`、`fdtget` 及 zlib 运行库。网页编入可执行程序，无需单独部署前端。`fdtget` 可使用已有 Buildroot host 工具：
 
 ```sh
 make -C bsp-base-external/support/ota-server
 export PATH="$PWD/output/am625/host/bin:$PATH"
 mkdir -p output/ota-feed
-bsp-base-external/support/ota-server/ota-server publish \
-    --root "$PWD/output/ota-feed" \
-    --source "$PWD/output/am625/images/release" \
-    --version 1 --product ti-am62x --layout am62x-sd-ab-v1
 bsp-base-external/support/ota-server/ota-server \
-    --root "$PWD/output/ota-feed" --bind 0.0.0.0 --port 8080
+    --root "$PWD/output/ota-feed" --bind 0.0.0.0 --port 8090
 ```
 
-如果主机 IP 为 `192.168.10.246`，浏览器访问 `http://192.168.10.246:8080/`。
-默认只监听 `127.0.0.1`；开发板连接时需显式指定外部监听地址。
+浏览器访问 `http://192.168.10.246:8090/`（主机 IP 按实际情况调整）。默认端口是 8090，避免占用本机 GitLab 的 8080；默认监听地址为 `127.0.0.1`。后台运行时也需要在服务环境的 PATH 中提供 `fdtget`。
 
-发布会复制 `release.itb`、`kernel.itb`、`rootfs.itb`，检查 release FIT 的产品、布局、组件文件名和组件 SHA256，保存为 `releases/1/`，最后原子替换 `latest` 清单。发布期间服务可以继续运行；旧版本 URL 保留不变。不要修改或覆盖已经发布的目录。
+## 上传与发布
 
-新固件构建完成后，再运行同样的发布命令，把 `--version` 改为 `2`。重复或倒退的编号、不同产品/布局、混合的组件文件会被拒绝。第一版每个服务目录只管理一种产品和布局。
+1. 网页选择 `.tar.gz` 固件包，点击“上传并校验”。
+2. 服务器校验文件格式、release FIT 的产品/布局、组件文件名及文件 SHA256，读取 `fw,version`。成功后显示在“待发布固件”中。
+3. 确认版本后点击“发布到设备”。服务器自动分配递增发布编号，并原子切换 `latest`。
+4. “发布记录”显示当前版本和历史发布。设备在下一次轮询时获取新版本。
 
-**这里的 `--version` 是递增发布编号（1～2147483647），不是 FIT 的 `fw,version`。** 发布不会修改已构建 FIT、提升固件版本或绕过回滚检查。当前板级 ITS 模板仍使用固定版本；真正升级固件版本时，需要调整对应 FIT 元数据后重新构建。最终是否允许安装仍由 `fwctl` 决定。
+固件包必须直接包含三个普通文件，可另带 `SHA256SUMS`：
 
-## 2. 设备主动检查与下载
+```text
+release.itb
+kernel.itb
+rootfs.itb
+SHA256SUMS     # 可选；组件校验依据 release FIT 中的哈希
+```
 
-AM62x defconfig 已启用 `BR2_PACKAGE_OTA_AGENT`，并增加 curl 命令和 BusyBox SHA256。首次从配置构建时：
+已有构建产物可这样打包：
+
+```sh
+tar -C output/am625/images/release -czf output/ota-package.tar.gz \
+    release.itb kernel.itb rootfs.itb
+```
+
+不要上传整个 `sdcard.img.gz`，也不要只上传引用其他文件的 `release.itb`。现有测试包 `output/ota-validation/1.0.5/ota-1.0.5.tar.gz` 可以直接在网页上传。
+
+压缩包及解压后内容总量均限制为 512 MiB，最多保留 256 个上传草稿。支持普通 ustar/GNU tar 头和只含时间/所有者等元数据的 PAX 扩展；拒绝重复文件、链接、目录、路径覆盖及未知文件。上传中断或验证失败会清理临时文件，保留原发布。
+
+一个服务目录对应一种产品和布局；网页发布拒绝产品/布局不匹配。显式发布可以选择更低的展示版本，设备仍执行组件 rollback index 检查。重复点击同一个已发布草稿返回原发布编号。重复上传同一个固件会形成新草稿，再次明确发布可生成新的发布编号。
+
+**固件版本与发布编号不同。** 网页中的 1.0.1 来自 FIT 的 `fw,version`，发布编号是 #1、#2 等服务器序号。服务器不会修改 FIT 或绕过 `fwctl` 的安装策略。默认板级 ITS 仍使用固定版本；发布正式新固件前需要在构建阶段设置相应 FIT 版本。完整 FIT/签名/安装条件仍由 `fwctl` 检查。
+
+## 无图形界面的命令行发布
+
+`ota-cli` 是独立的 C 可执行程序，使用 PATH 中的 `curl` 访问现有服务器，不需要
+浏览器、Python、jq、libcurl 开发包或访问服务器文件目录。编译仅需 C 编译器和 make：
+
+```sh
+cd ~/workspaces/am62x/bsp-base-external/support/ota-server
+make ota-cli
+export OTA_SERVER=http://192.168.10.246:8090
+
+# 查看草稿、发布编号、当前发布和设备升级历史
+./ota-cli list
+
+# 上传并校验，返回 {"id":"draft-...","status":"draft"}，不会立即发布
+./ota-cli upload ~/workspaces/am62x/output/ota-validation/1.0.8/ota-1.0.8.tar.gz
+
+# 将下面的 draft-... 替换为 upload/list 返回的实际 ID
+./ota-cli publish draft-...
+```
+
+执行 `publish` 会使该版本对设备可见；启用自动安装的设备将在轮询后下载、安装并重启。
+无需额外确认输入，适合脚本调用。固件版本来自 FIT，发布编号由服务端分配，不需要手填。
+同一草稿重复发布返回原编号；重复上传会创建新草稿。
+
+参数与返回约定：
+
+- `--server URL` 覆盖 `OTA_SERVER`；都未设置时使用 `http://127.0.0.1:8090`。
+- 默认以缩进 JSON 展示响应；`--json` 原样输出服务器 JSON，便于自动化处理，
+  例如 `./ota-cli --server http://192.168.10.246:8090 --json list`。
+- 成功退出码为 0；网络/HTTP/服务端校验失败为 1；参数或本地文件错误为 2。
+  失败信息写 stderr，并保留服务器返回的原因。
+- 上传只接受 1 字节至 512 MiB 的普通文件，采用流式发送，拒绝符号链接/FIFO/目录。
+  文件名包含空格可正常使用；以 `-` 开头的相对文件名请加 `./`。
+- 写请求不自动重试。网络断开时，先运行 `list` 确认服务器是否已接收或发布，避免重复上传。
+- `list` 同时返回 `drafts`、`releases`、`devices` 与 `device_history`。
+  查询响应上限为 16 MiB；超限会报错，不会输出看似成功的不完整列表。
+
+客户端可复制到另一台兼容的 Linux 主机使用（需 curl）。设备端和 OTA 服务端无需更新。
+`make test` 包含隔离 HTTP 服务上的 CLI 集成测试，不会发布到正在连接开发板的服务器。
+
+## 设备端
+
+下载协议兼容旧设备；自动安装需要新版 `fwctld` 和支持 `ota-status`、`ota-check` 的 `fwctl`。旧 1.0.0–1.0.2 测试固件需要先手动升级一次。AM62x defconfig 已启用 `BR2_PACKAGE_FWCTLD`，包含 curl 命令和 BusyBox SHA256。
 
 ```sh
 make -C buildroot BR2_EXTERNAL=../bsp-base-external alientek_am62x_defconfig
 make -C buildroot
 ```
 
-使用已有 `output/am625` 构建目录时，保留原来的下载目录等本地配置，通过 `menuconfig` 启用 `ota-agent`，然后执行：
+既有输出目录首次启用该包时，使用 `menuconfig` 选择 `fwctld`，再执行 `libcurl-reconfigure busybox-reconfigure fwctld` 和完整构建。
+
+设备需先准备可写且容量足够的缓存目录。持久使用可选择已挂载的 `/data/fwctld`；当前两版测试镜像使用 `/tmp/fwctld`，重启会清空。
 
 ```sh
-make -C output/am625 menuconfig
-make -C output/am625 libcurl-reconfigure busybox-reconfigure ota-agent
-make -C output/am625
-```
-
-开发板需先准备好可写且容量足够的缓存目录；推荐将 `/data` 挂载到持久存储。不要直接假设当前板卡已经挂载了 data 分区，也不要为测试格式化现有数据。
-
-```sh
-mkdir -p /data/ota
-ota-agent --server http://192.168.10.246:8080 \
+mkdir -p /data/fwctld
+fwctld --server http://192.168.10.246:8090 \
     --product ti-am62x --layout am62x-sd-ab-v1 \
-    --cache /data/ota --interval 60
+    --cache /data/fwctld --interval 60
 ```
 
-该命令前台运行；加 `--once` 则只检查一次，失败返回非零。没有发布版本时会报告检查失败并等待下一轮。下载固定版本 URL，所有文件校验通过后才出现 `/data/ota/1/` 和 `current` 记录。`current` 只表示下载完成，不能用于判断设备当前运行版本或升级成功。
+加 `--once` 则只检查一次。尚未发布时会报告检查失败并等待下次重试。下载完整且校验通过后，生成 `/data/fwctld/<发布编号>/` 和 `current`；`current` 只表示下载完成，不代表已安装或启动成功。
 
-重复检查不会重新下载同一版本的固件，但会重新校验缓存。网络错误、型号不匹配、损坏文件或发布编号倒退不会替换之前的 `current`。损坏的已完成缓存需要删除对应编号目录后重试；中断下载下一轮重新开始，暂不支持断点续传。设备会保留历史下载，需定期人工清理；异常断电可能留下 `.download-*` 临时目录，可在停止 agent 后清理。
+重复检查不会重新下载同一发布，但会验证缓存。失败不会替换之前的 `current`。暂不支持断点续传；损坏的已完成缓存需删除对应编号目录后重试。历史下载和异常退出留下的 `.download-*` 可在停止 fwctld 后按需清理。
 
-## 3. 安装与开机轮询
+## 自动安装与结果上报
 
-查看 agent 输出的具体路径，检查 `fwctl status` 后安装。例如发布编号为 1：
+常规镜像默认 `FWCTLD_ENABLED=0`，避免未配置服务器就升级。配置镜像中的 `/etc/default/fwctld`，或使用启动前已挂载的 `/data/fwctld.conf` 覆盖：
 
 ```sh
-fwctl status
-fwctl update /data/ota/1/release.itb
+FWCTLD_ENABLED=1
+FWCTLD_SERVER="http://192.168.10.246:8090"
+FWCTLD_PRODUCT="ti-am62x"
+FWCTLD_LAYOUT="am62x-sd-ab-v1"
+FWCTLD_CACHE="/tmp/fwctld"
+FWCTLD_INTERVAL=15
+FWCTLD_AUTO_INSTALL=1
+FWCTLD_DEVICE_ID=""  # 默认使用 eth0 的 MAC，将冒号替换为连字符
 ```
 
-`fwctl` 校验 FIT、版本和回滚策略，写入非活动槽并设置待启动状态；返回成功不代表新版本已启动。确认写入成功后再按设备策略重启，后续沿用 `S99fw-mark-good` 健康确认流程。OTA 程序不会自动安装或重启。
-
-`S98ota-agent` 默认关闭。若 `/data` 已在启动脚本运行前挂载，可以创建仅由管理员维护的 `/data/ota-agent.conf`：
+`FWCTLD_DEVICE_ID` 必须稳定且每台设备唯一。`S98fwctld` 自动启动，输出到 `/var/log/fwctld.log`。直接运行或主动检查一次：
 
 ```sh
-OTA_ENABLED=1
-OTA_SERVER="http://192.168.10.246:8080"
-OTA_CACHE="/data/ota"
-OTA_INTERVAL=60
+# 先停止已有 fwctld，避免缓存锁冲突。
+/etc/init.d/S98fwctld stop
+mkdir -p /tmp/fwctld
+fwctld --server http://192.168.10.246:8090 \
+    --product ti-am62x --layout am62x-sd-ab-v1 \
+    --cache /tmp/fwctld --auto-install --device 1c-63-49-22-c4-f7 --once
 ```
 
-其余默认值来自 `/etc/default/ota-agent`。执行 `/etc/init.d/S98ota-agent start` 启动，`stop` 停止。只读 rootfs 无需直接修改 `/etc`；持久配置生效依赖 `/data` 的挂载时机。
+`--once --auto-install` 也会实际安装并重启；不带 `--auto-install` 则只下载。正常后台运行去掉 `--once`，或启动 init 服务。
 
-## 协议与范围
+自动安装条件：当前 deployment 已确认且没有 pending 更新。设备先获取当前发布的身份信息，调用 `fwctl ota-check` 比较当前启动 deployment 的版本和实际存储内容；版本与 kernel/rootfs SHA256 都一致时跳过下载，否则安装当前发布。发布编号只用于历史记录，不作为“已处理就永远跳过”的依据。内核按 FIT 的有效总长度校验，rootfs 按 FIT 中实际写入的 payload 长度校验，不包含分区剩余空间。服务器先持久保存 `installing` 事务，设备才调用 `fwctl update`；写入备用槽并核对 pending 版本后，服务器保存 `rebooting`，设备才重启。服务器不可达或本地状态读取失败时等待重试，不启动新的安装。
 
-- `GET /latest`：`BSPOTA1` 文本清单，包含发布编号、产品、布局和三个文件的大小与 SHA256。
-- `GET /releases/<编号>/{release.itb,kernel.itb,rootfs.itb,manifest}`：固定版本下载。
-- `GET /`：最新发布的文件链接；`GET /healthz`：服务存活检查。
-- 支持 GET/HEAD；路径严格限制，不提供上传接口，不发布 bootloader。
+重启后通过 `fwctl ota-status` 核对实际启动的 deployment。`S99fw-mark-good` 仍负责健康检查，fwctld 不强行确认。网页“设备升级历史”保留每次升级，点击“刷新”获取，并可展开各阶段上报时间：
 
-这是局域网开发验证版本：HTTP 服务串行处理请求，没有账号、TLS、推送连接、设备管理或自动清理。设备采用主动轮询而非服务端直接连接设备。SHA256 用于完整性检查，不等于发布者身份认证；生产部署需要补上认证传输和固件签名策略。发布程序校验的是 release 元数据及组件文件哈希，完整 FIT/签名/安装策略由 `fwctl` 检查。
+| 状态 | 含义 |
+| --- | --- |
+| `installing` | 已登记事务，正在调用 fwctl |
+| `rebooting` | 备用槽已写入并核对，等待重启 |
+| `boot-testing` | 新版本已启动，健康检查尚未确认 |
+| `success` | 目标 deployment、版本和健康确认均匹配 |
+| `install-failed` | 安装或安装后状态核对失败 |
+| `rolled-back` | 目标 deployment 已失败，设备回到旧版本 |
+| `interrupted` | 事务中断，未找到可继续的 pending 更新 |
+| `reboot-failed` | reboot 命令失败，需要排查 |
+| `up-to-date` | 早期设备上报的无需安装状态；新版通过实际内容校验跳过，不新增升级事务 |
+
+同一个失败发布不会自动反复安装；排障后重新发布生成新编号。未确认的启动一直保留 `boot-testing`，由现有健康/看门狗策略处理，不误报成功。离线时服务器保留最后一次上报，不能把旧结果当作设备在线状态。设备恢复联网后继续核对和上报。
+
+事务保存在服务器 `devices/<设备ID>`，使用临时文件、fsync 和原子替换；重启清空 `/tmp` 不会丢失安装事务。备份服务器时应同时备份 `devices/`、`history/` 和 `releases/`。自动安装模式先核对服务器事务和本机启动健康状态，再比较版本和实际内容；缓存清空不影响一致判断。失败、回滚后内容仍不一致时，会在下一次检查重新尝试当前发布；不要让已知不可启动的固件持续作为服务器目标。仅下载模式仍按本地缓存决定是否下载。`history/<设备ID>/<发布编号>-<来源boot-id>` 原子保存该次升级的状态变化和服务器接收时间，重复上报相同状态不会增加记录。历史先持久化，再更新最近事务并响应设备；后续升级不会覆盖旧记录，重启服务器也会保留。首次启用时迁移原有最近状态并标记为旧数据，不会重建过去已经被覆盖的记录。页面只展示实际收到的上报，离线期间未上报的阶段不会补造。尚无设备身份认证。
+
+手动模式仍可使用：
+
+```sh
+read marker publication product layout < /tmp/fwctld/current
+[ "$marker" = BSPOTA1 ] && fwctl update "/tmp/fwctld/$publication/release.itb"
+# 确认命令成功后执行 reboot。
+```
+
+## U-Boot 主动请求内核恢复包
+
+需要更新包含这些修改的 U-Boot；仅升级 kernel/rootfs 不会升级 U-Boot。AM625 A53 配置启用 HTTP/TCP，环境版本升级到 5，正常 eMMC 启动使用 `fw load-kernel` 读取并验证 FIT。出现读错误、FIT 格式错误、哈希或版本检查失败时，自动调用一次 `fw recover-kernel`。
+
+U-Boot 中配置（地址按实际网络修改）：
+
+```text
+setenv ipaddr 192.168.10.211
+setenv serverip 192.168.10.246
+setenv netmask 255.255.255.0
+setenv ota_serverip 192.168.10.246
+setenv ota_serverport 8090
+setenv ota_recovery 1
+saveenv
+```
+
+`ota_serverip` 未设置时使用 `serverip`；`ota_recovery` 默认 1。调试用 TFTP/NFS 启动路径不触发自动修复。也可以主动检查及修复所选内核：
+
+```text
+fw select
+fw recover-kernel
+```
+
+设备从可信 metadata 获取内核版本，向 `/recovery/<product>/<layout>/kernel/<版本整数>/kernel.itb` 请求，例如版本 1.0.2 对应 65538。服务器只从已发布历史中返回相同产品、布局和内核版本的包；找不到或同版本存在不同内容时返回 404，绝不使用最新版替代。应长期保留设备可能运行的历史包。
+
+下载大小受分区大小限制；U-Boot 验证 FIT 哈希、既有签名策略、产品、布局、组件类型、版本、rollback index 和已记录构建时间，再修复**原本损坏的内核槽**并读回验证。保留另一槽、rootfs 和 A/B metadata。健康内核不重复刷写。修复成功后重新加载并启动；下载、校验或存储写入失败则不继续 bootm，保留现有启动失败/看门狗行为。
+
+U-Boot 恢复入口覆盖内核读入/完整性故障。rootfs 损坏由 kernel FIT 内独立的 initramfs 恢复环境处理，见 [AM625 恢复说明](../../board/ti/am625/verified-boot.md)。物理存储永久故障不能靠重刷修复。metadata 丢失或工厂初始化后的内核版本为 0 时无法确定匹配包，会拒绝自动恢复。恢复结果显示在 U-Boot 串口；网页设备结果表针对 Linux fwctld 的 OTA 事务，不表示 U-Boot 恢复遥测。
+
+HTTP 端口处理遵循当前 U-Boot legacy 网络栈的 `httpdstp`，恢复命令临时设置并恢复它，参见 [U-Boot wget 文档](https://docs.u-boot.org/en/stable/usage/cmd/wget.html)。
+
+## 服务器本地发布与存储
+
+维护服务器本地 feed 时，也可使用 `ota-server publish` 从三份 ITB 直接发布；远程日常操作优先使用上述 `ota-cli`：
+
+```sh
+ota-server publish --root output/ota-feed \
+    --source output/am625/images/release --version 1 \
+    --product ti-am62x --layout am62x-sd-ab-v1
+```
+
+CLI 的 `--version` 是发布编号，必须高于已有编号。`drafts/` 保存网页上传结果；`releases/<编号>/` 保存固定发布快照；`latest` 是当前对设备可见的清单。不要覆盖已经发布的文件。
+
+## 接口与范围
+
+| 接口 | 用途 |
+| --- | --- |
+| `GET /` | 上传、待发布列表和发布记录 |
+| `GET /api/state` | 管理页面的版本状态 JSON |
+| `POST /api/upload` | 上传原始 `.tar.gz` 数据，保存草稿 |
+| `POST /api/publish/<草稿ID>` | 将指定草稿发布给设备 |
+| `GET /latest` | 兼容现有设备的 `BSPOTA1` 清单 |
+| `GET /releases/<编号>/<文件名>` | 设备获取固定版本组件 |
+| `GET /releases/<编号>/identity` | 实际 kernel FIT/rootfs payload 的长度与 SHA256，用于刷写内容比较 |
+| `GET /releases/<编号>/info` | 固件版本整数，与旧下载清单兼容 |
+| `GET/POST /api/devices/<设备ID>` | 读取/持久保存设备事务；POST 需要 `X-OTA-Request: 1` |
+| `GET /recovery/<产品>/<布局>/rootfs/<payload-sha256>/rootfs.itb` | initramfs 按实际 rootfs 内容获取准确恢复包 |
+| `GET /recovery/<产品>/<布局>/kernel/<版本>/kernel.itb` | 按确切内核版本取恢复包 |
+| `GET /healthz` | 存活检查 |
+
+管理写请求需要 `X-OTA-Request: 1`，上传还需要准确的 Content-Length 和 `application/octet-stream` 类型；不接受 multipart/chunked。浏览器跨来源写请求会被拒绝。这是可信局域网开发服务，没有账号认证、TLS、设备分组或主动推送连接。设备使用轮询；服务串行处理请求，大包上传期间其他请求需要等待。
+
+压缩数据由 [zlib](https://www.zlib.net/manual.html) 处理；tar 解包只接受固定文件集合。服务端无 Python 运行依赖，Python 仅用于主机测试。
 
 ## 验证
 
 ```sh
 make -C bsp-base-external/support/ota-server test
-```
-
-测试使用本机临时目录、回环 HTTP 和合成清单，覆盖在线发布后自动发现、重复版本、文件校验失败、型号不匹配、旧版本拒绝、缓存保留、互斥和路径限制。它不会调用真实 `fwctl`、写入板卡闪存或重启设备。实际板卡的安装、重启及回滚还需要硬件验证。
-
-已完成主机端到端测试、AM62x 交叉编译和完整镜像构建，并使用实际 FIT 固件完成发布、下载和逐字节比对。可重复运行实际固件传输测试：
-
-```sh
 sh bsp-base-external/support/ota-server/tests/test-real-release.sh \
     output/am625/images/release
 ```
 
-这不等同于开发板 OTA 安装测试；当前未进行硬件刷写。
+测试覆盖上传不发布、显式发布、重复发布、坏包/缺文件/路径限制、型号和版本检查、HTTP 请求边界、原设备下载协议及缓存保护。测试不会写入开发板或重启设备。
+
+可选真实浏览器测试需要 Node.js 22 和 Chromium。对**独立临时服务目录**运行以下命令；测试会真的上传并发布指定包：
+
+```sh
+CHROMIUM_BIN=/path/to/chrome node \
+    bsp-base-external/support/ota-server/tests/browser-smoke.mjs \
+    http://127.0.0.1:测试端口 \
+    output/ota-validation/1.0.5/ota-1.0.5.tar.gz \
+    output/ota-admin-validation
+```
+
+已用现有 1.0.1 固件完成 Chromium 文件选择、上传、发布、桌面/移动页面和设备客户端下载验证。实机安装与回滚仍需在开发板验证。
+
+自动流程测试使用真实 HTTP 服务和 fwctld，替身 fwctl/reboot 模拟安装、确认、回滚与中断，不操作板卡。U-Boot sandbox 测试验证内核格式/哈希检查；AM625 实机 HTTP 恢复、断电中断和 watchdog 时序仍需通过串口验证。
+
+## 1.0.5 启动与回滚修正
+
+实机 1.0.3 暴露了三个问题，1.0.4 也包含相同问题，未发布的这两版测试草稿已归档：
+
+- BusyBox 未启用 `tr`，旧版启动脚本生成设备 ID 失败，rcS 记录服务失败，健康检查正确地拒绝确认。现在使用 ash 内建 `read`、模式匹配和 `printf`。
+- lighttpd 1.4.82 会移除关闭的目录列表模块，残留 `dir-listing.activate` 产生警告。删除冗余配置，使用默认关闭行为；已实际验证目录访问返回 403。
+- 回滚到 schema 2 的旧 U-Boot 后，旧环境迁移保留了新版 `fw_load_kernel`，其中新命令不被旧 U-Boot 识别。schema 5 保持该变量为兼容的 MMC 加载命令，新校验使用 `fw_load_checked_kernel`。
+
+1.0.5 四个 ITB 已部署到 `/srv/tftp/am625/`。处于 U-Boot 命令行时执行 `run upa && run upb && reset`，先更新 kernel/rootfs，再更新引导程序。两步成功才重启。启动应显示 release 1.0.5，等待约 30 秒正常健康确认；不应手动绕过检查。随后可在管理页面发布 1.0.6 验证自动升级。
+
+如果只需让旧 U-Boot 启动回滚后的系统，可恢复兼容命令：
+
+```text
+setenv fw_load_kernel 'mmc dev ${fw_mmcdev} && setexpr fw_kernel_lba ${fw_kernel_offset} / 0x200 && setexpr fw_kernel_blocks ${fw_kernel_size} / 0x200 && mmc read ${kernel_addr_r} ${fw_kernel_lba} ${fw_kernel_blocks}'
+saveenv
+run fw_boot
+```
+
+新增验证：`python3 tests/test-init.py` 在缺少 tr 的 PATH 下运行 BusyBox ash；
+`python3 tests/test-lighttpd-config.py <lighttpd-1.4.82主机程序> <模块目录>` 验证真实 Web 行为；
+U-Boot 的 `python3 test/py/tests/test_am62x_boot_env.py` 覆盖回滚到 schema 2/3 的启动路径。修正版仍待实机复测。
+
+
+## 1.0.7 关机清理修正
+
+1.0.6 关机日志中的 PDM busy 和 CAN `-100` 需要区分原因：`-100` 是
+`ENETDOWN`，说明 CAN 接口关闭后接收线程仍在运行；模块 busy 的具体占用者需要
+实机诊断。源码中已确认并修正以下问题：
+
+- `rcK` 开始时创建 `/run/shutdown`。`system_manager` 在此期间禁止新的服务重启，
+  也不执行已排队的重启；存活期间继续喂狗。避免服务主动报告 STOP 后被再次拉起。
+- PDM 统一由 `S10pdm` 管理，移除 `modules-load.d/pdm.conf` 的重复加载/卸载。
+  post-build 同时清理增量构建中遗留的该文件。
+- 服务被 SIGKILL 后继续有界等待退出；未退出时保留 PID 文件并明确报告失败。
+  PDM 卸载最多尝试三次，失败时打印引用计数及可发现的进程文件描述符。
+  CAN 服务在 PDM 仍加载时拒绝关闭接口，不强制卸载使用中的驱动。
+- BusyBox init 在终止剩余进程之前执行 shutdown 动作。保留仍在使用的 tmpfs、
+  devtmpfs 等 RAM/虚拟文件系统；继续同步并卸载或只读重挂载 ext4、UBIFS、NFS
+  等持久/网络文件系统。没有把所有卸载错误重定向隐藏。
+
+验证命令：
+
+```sh
+# 在 support/ota-server 下执行
+make test
+# 在 workspace 下执行
+cmake -S edk/tests -B output/edk-shutdown-tests
+cmake --build output/edk-shutdown-tests -j8
+ctest --test-dir output/edk-shutdown-tests --output-on-failure
+make -C buildroot O="$PWD/output/am625" edk-reconfigure \
+    BR2_PACKAGE_EDK_DEFCONFIG=ti_am62x_defconfig BR2_PACKAGE_EDK_FW=y BR2_PACKAGE_EDK_WEB=y
+make -C buildroot O="$PWD/output/am625" all
+```
+
+本机测试与 AM625 交叉编译、镜像打包已通过；实机卸载和关机时序仍需验证。
+本次测试包位于 `output/ota-validation/1.0.7/ota-1.0.7.tar.gz`，只上传为待发布草稿。
+从 1.0.6 升级进入 1.0.7 的第一次关机仍使用旧脚本。进入 1.0.7 并通过健康确认后，
+用 `fwctl version` 确认版本，再执行一次 `reboot`，通过串口观察 PDM 卸载后再停止 CAN。
+如仍出现 busy，保留 `PDM reference count` 和 `PDM holder` 输出继续定位，不能据本机测试
+认定实机所有引用均已释放。看门狗 nowayout 保持启用，关闭喂狗进程时的提示不等同于
+升级失败。
+
+OTA 管理页同时增加持久升级历史。已有的最后状态自动迁移；此前被覆盖的记录无法恢复。
+此服务端功能无需升级设备固件即可生效。历史测试覆盖多次升级、状态去重、失败/回滚、
+服务器重启、旧数据迁移、写入中断后的重试以及损坏记录拒绝确认；Chromium 验证历史表、
+阶段展开和原有上传/发布流程。
+
+
+## OTA 实时串口日志
+
+`S98fwctld` 默认传入 `--console /dev/console`。发现发布、开始/完成组件下载、
+SHA256 校验、写入备用 deployment、安装子进程输出及重启前提示都会立即写入
+`/var/log/fwctld.log`，同时镜像到串口。`fwctl` 每次进度回调主动刷新 stdout，
+fwctld 边读边转发 stdout/stderr，不再等安装结束后一次性打印。健康确认和回滚上报也会显示。
+
+串口镜像采用非阻塞写入，控制台不可用时保留文件日志；串口拥塞时以文件日志为准。
+普通重复缓存轮询只写文件，不反复刷串口。设备通过轮询发现发布，提示时间取决于
+`FWCTLD_INTERVAL`（测试固件 15 秒），不是服务器主动推送。
+
+可在 `/data/fwctld.conf` 中设置 `FWCTLD_CONSOLE=""` 关闭镜像；日志文件仍保留。
+该功能需要新版 fwctld/init 脚本与 fwctl。升级进入新版时，下载和关机仍由旧版升级守护进程
+执行；进入新版后下一次升级才能看到完整实时流程。主机测试在下载和模拟 flash 写入
+中途阻塞操作，检查进程退出之前文件和控制台均已收到日志。
+
+
+## 设备守护进程统一命名为 fwctld
+
+工具职责：`ota-server` 管理服务端，`ota-cli` 操作服务端，`fwctl` 执行设备本地固件操作，
+`fwctld` 负责后台 OTA 流程。协议、发布编号、设备 ID 和服务器上的升级历史保持兼容。
+设备 daemon 源码为 `fwctld.c`、`fwctld-auto.c`、`fwctld-log.c`；共享 OTA 协议代码
+仍与服务端放在 `support/ota-server/`。
+
+| 项目 | 新名称 |
+| --- | --- |
+| Buildroot 包/选择项 | `package/fwctld` / `BR2_PACKAGE_FWCTLD` |
+| 程序 | `/usr/sbin/fwctld` |
+| 启动脚本 | `/etc/init.d/S98fwctld` |
+| 默认/持久配置 | `/etc/default/fwctld` / `/data/fwctld.conf` |
+| PID / 日志 | `/var/run/fwctld.pid` / `/var/log/fwctld.log` |
+| 新配置默认缓存 | `/tmp/fwctld` |
+
+设备配置变量统一使用 `FWCTLD_*`，仅加载 `/etc/default/fwctld` 和
+`/data/fwctld.conf`，后者覆盖默认配置。管理主机 `ota-cli` 的 `OTA_SERVER` 不变。
+启动及安装脚本只处理当前配置和文件，不包含旧名称映射、迁移或清理逻辑。
+当前 AM625 构建目录中的过时包和文件已一次性清理；新构建使用
+`BR2_PACKAGE_FWCTLD`。
+
+```sh
+# workspace 根目录；已有 AM625 配置已启用 BR2_PACKAGE_FWCTLD
+make -C buildroot O="$PWD/output/am625" fwctld
+make -C buildroot O="$PWD/output/am625" all
+
+# 设备端
+/etc/init.d/S98fwctld restart
+tail -f /var/log/fwctld.log
+```
+
+
+自动升级成功后，即使 RAM 缓存因重启丢失，只要版本和实际内容一致，就不会再次下载。
+网络/HTTP 查询失败和 fwctl 本机状态错误分别打印原因，并提示当前失败阶段与重试间隔。
+
+## 设备主动强制恢复
+
+停止后台实例，使用同一个设备 ID 发起一次恢复；成功后自动重启，并在重启后健康确认才上报成功：
+
+```sh
+/etc/init.d/S98fwctld stop
+fwctld --server http://192.168.10.246:8090 \
+  --cache /tmp/fwctld --product ti-am62x --layout am62x-sd-ab-v1 \
+  --device 1c-63-49-22-c4-f7 --auto-install --once --force --console /dev/console
+```
+
+设备 ID 应替换为本设备实际 ID。`--force` 必须和 `--once --auto-install` 一起使用；
+它重新下载并安装，即使版本和哈希一致，也不复用旧 payload 缓存。
+它不会覆盖 pending deployment，也不会跳过包校验、rollback index、A/B 写入和健康确认。
+命令失败且未重启时，可执行 `/etc/init.d/S98fwctld start` 恢复后台检查。
+普通检查在本地存储读取失败时停止；显式强制恢复允许绕过这个相等性检查，仍需可读的 A/B metadata。
+Linux 无法启动时不能运行此命令；U-Boot 内核恢复和根文件系统恢复是不同入口。
+
+## 固件身份与阶段验证
+
+详见 [AM625 分阶段完整性验证](../../board/ti/am625/verified-boot.md)。
+当前已经实现实际 payload 校验、强制恢复及对外展示的固件内容 ID / 版本 tag。
+`firmware_id` 是下面规范化清单的 SHA256（换行固定为 LF），不包含发布编号：
+
+```text
+BSPFWCONTENT1
+kernel <实际写入字节数> <kernel FIT SHA256>
+rootfs <实际写入字节数> <rootfs payload SHA256>
+```
+
+相同内容重新发布得到相同 ID；实际内容改变则 ID 改变。这是类似 commit ID 的固件身份，
+不是源码 Git commit。`tag` 从 FIT 版本派生为 `v1.0.0` 形式；既有 FIT 数字字段和
+`/releases/<发布编号>/` 存储路径保留。`GET /releases/<编号>/version` 返回
+`BSPOTAVERSION1 <编号> <tag> <完整内容哈希>`，`/api/state` 同时提供 `firmware_id` 和 `tag`。
+fwctld 发现、下载、校验、安装和结果日志优先显示 tag / 哈希前 8 位；发布编号仅用于追溯。
+
+当前版本和实际内容一致时不下载、不安装、不重启。旧版 1.0.10 的判断发生在下载之后，
+所以重新发布 1.0.10 后可能先下载，再打印 `up-to-date`；这是无需升级的结果，不是漏执行重启。
+
+initramfs 恢复与普通 fwctld 升级事务不同：按内核绑定的 rootfs payload 哈希取包，当前恢复阶段打印串口日志，不新增独立的服务器恢复事件记录；正常 pending 升级仍由正式系统上报健康结果。
+
+## 异常停发、回退发布与审计
+
+设备上报 `rolled-back`、`install-failed`、`verify-failed` 时记为**升级失败**；
+`device-error`、`interrupted`、`reboot-failed` 记为**设备异常**。两类分别统计，
+但任一事件都会将关联固件的 kernel/rootfs 内容身份标记为全局异常：
+
+1. 先持久保存设备历史和隔离标记，再确认上报。异常包下载返回 HTTP 410；
+   已上传同内容草稿也不能重新发布。`--force` 不绕过服务器的全局隔离。
+2. 如果当前发布仍是异常内容，立即撤下，选择该产品/布局在异常发布之前、
+   有设备 `success` 健康确认且未被隔离的最近发布，复制为**新发布编号**。
+   固件版本及二进制保持原正常版本。没有符合条件的版本时保持停发。
+3. 延迟到达的旧版本异常不会替换已经发布的不同内容版本；重复上报不重复回退。
+   服务启动时重放历史异常，补做尚未完成的隔离/回退。
+
+`GET /api/state` 提供 `release_stats` 和 `audit_events`。每个发布编号按设备 ID
+去重，显示 `success`、`upgrade_failed`、`device_errors`、`in_progress`、`up_to_date`（无需升级）；
+同一设备的多次尝试仍完整保存在 `device_history`，统计采用最近事务结果。
+“成功”只由重启后的健康确认产生，下载完成、安装完成均不计成功。
+
+设备新上报格式为 `BSPOTASTATE2 ... PHASE TARGET RUNNING REASON`，原因是机器可读标识，
+例如 `boot-failed-rolled-back`、`download-sha256-mismatch`、`cache-storage-failed`、
+`fwctl-exit-5`。`fwctl update` 失败返回 errno（1–125），I/O、空间不足、设备不存在、
+内存不足等由守护进程归为设备异常。旧上报没有原因时显示 `not-reported`，不推测内核 panic
+等根因。设备完全离线时服务器收不到事件；本规则从收到有效异常上报开始执行。
+
+持久数据位于服务 `--root` 下：`history/` 保存升级过程，`quarantine/` 保存内容隔离标记，
+`audit/` 保存仅新增的事件文件（设备/启动 ID、发布编号、版本、原因、服务端时间、
+kernel/rootfs SHA256、回退源及新发布编号）。这些是本地持久审计记录，备份时须连同
+`releases/` 一起保留。管理页面提供异常标记、三类数量和审计明细。
+
+无活动发布时，新版 fwctld 正常等待，不再将 `/latest` 的 404/204 当成升级错误。
+固件已经传输完毕或写入中的设备无法被服务器远程撤销；新下载请求会被拒绝，启动结果
+仍由设备 A/B 回滚和健康检查负责。
+
+验证：`make -C bsp-base-external/support/ota-server test`，其中
+`tests/test-quarantine.py` 覆盖全局停发、自动回退、重复事件、重启恢复、旧原因缺失和分类计数。

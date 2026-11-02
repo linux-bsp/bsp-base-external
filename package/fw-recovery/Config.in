@@ -1,0 +1,10 @@
+config BR2_PACKAGE_FW_RECOVERY
+    bool "fw-init initramfs recovery"
+    depends on BR2_USE_MMU
+    depends on BR2_TOOLCHAIN_HAS_THREADS
+    depends on BR2_PACKAGE_EDK_FW
+    select BR2_PACKAGE_LIBCURL_CURL
+    select BR2_PACKAGE_OPENSSL
+    help
+      C PID 1 for verified rootfs A/B boot and exact offline rootfs recovery.
+      Embedded into kernel FIT by the AM625 post-image builder.

@@ -52,3 +52,6 @@ for password_file in \
 do
 	[ ! -f "$password_file" ] || chmod 0600 "$password_file"
 done
+
+# S10pdm owns CAN-dependent PDM lifecycle. Clean the obsolete incremental overlay.
+rm -f "$TARGET_DIR/etc/modules-load.d/pdm.conf"

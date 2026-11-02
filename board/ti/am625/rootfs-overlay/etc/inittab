@@ -14,7 +14,7 @@
 # process   == program to run
 
 # Startup the system
-::sysinit:/bin/mount -t proc proc /proc
+::sysinit:/bin/sh -c 'test -r /proc/self/mounts || mount -t proc proc /proc'
 # Root filesystem is read-only SquashFS
 ::sysinit:/bin/mkdir -p /dev/pts /dev/shm
 ::sysinit:/bin/mount -a
@@ -35,4 +35,7 @@ ttyS2::respawn:-/bin/sh
 
 # Stuff to do before rebooting
 ::shutdown:/etc/init.d/rcK
-::shutdown:/bin/umount -a -r
+# RAM/virtual filesystems remain in use by init and the console until reset.
+# Still unmount/remount persistent filesystems (e.g. /data) and flush writes.
+::shutdown:/bin/sync
+::shutdown:/bin/umount -a -r -t noproc,sysfs,devtmpfs,devpts,tmpfs,ramfs,debugfs,tracefs,configfs,cgroup,cgroup2,pstore,securityfs

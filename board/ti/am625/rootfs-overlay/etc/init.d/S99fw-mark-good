@@ -19,6 +19,7 @@ wait_until_stable()
 	while [ "$count" -lt "$checks" ]; do
 		[ "$interval" -eq 0 ] || sleep "$interval"
 		if ! health_check; then
+			echo "fwctl: ================ HEALTH / FAILED ================" >&2
 			echo "fwctl: health check failed; deployment remains pending" >&2
 			return 1
 		fi
@@ -70,7 +71,10 @@ mark_good_worker()
 	if /usr/sbin/fwctl \
 		--config "${FWCTL_CONFIG:-/etc/edk/firmware.conf}" \
 		mark-good; then
+		echo "fwctl: ================ HEALTH / CONFIRMED ================"
 		echo "fwctl: current deployment marked good"
+		/usr/sbin/fwctl --config "${FWCTL_CONFIG:-/etc/edk/firmware.conf}" version
+		echo "fwctl: [CONFIRMED] Local boot health passed; OTA result reporting is handled by fwctld"
 		return 0
 	fi
 
@@ -102,6 +106,7 @@ start_worker()
 		return 1
 	fi
 
+	echo "fwctl: ================ HEALTH / OBSERVING ================"
 	echo "fwctl: deployment $deployment health monitoring started in background"
 	return 0
 }

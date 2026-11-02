@@ -25,7 +25,7 @@ while ! test -s "$scratch/server.log"; do
     sleep 1
 done
 url=$(sed -n 's|OTA server: \(http://[^/]*/\).*|\1|p' "$scratch/server.log")
-"$src/ota-agent" --server "$url" --cache "$scratch/cache" \
+"$src/fwctld" --server "$url" --cache "$scratch/cache" \
     --product ti-am62x --layout am62x-sd-ab-v1 --once
 for file in release.itb kernel.itb rootfs.itb; do
     cmp "$release/$file" "$scratch/cache/1/$file"

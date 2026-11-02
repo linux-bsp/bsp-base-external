@@ -74,6 +74,8 @@ CONFIG_BOOTP_MAY_FAIL=y
 CONFIG_CMD_DHCP=y
 CONFIG_CMD_WDT=y
 CONFIG_CMD_FW=y
+CONFIG_CMD_WGET=y
+CONFIG_PROT_TCP_SACK=y
 CONFIG_CMD_MMC=y
 CONFIG_CMD_SETEXPR=y
 CONFIG_CMD_MTD=y
@@ -161,3 +163,5 @@ CONFIG_EFI_SET_TIME=y
 
 #include <configs/k3_efi_capsule.config>
 #include <configs/am62x_a53_usbdfu.config>
+
+CONFIG_OF_BOARD_SETUP=y

@@ -5,7 +5,7 @@ if [ -d "$src/../../../output/am625/host/bin" ]; then
     PATH="$src/../../../output/am625/host/bin:$PATH"
     export PATH
 fi
-for tool in curl sha256sum dtc fdtget; do
+for tool in curl sha256sum dtc fdtget mkimage dumpimage; do
     command -v "$tool" >/dev/null || { echo "Missing test dependency: $tool" >&2; exit 1; }
 done
 scratch=$(mktemp -d)
@@ -22,6 +22,14 @@ trap 'exit 1' INT TERM
 mkdir "$scratch/source" "$scratch/feed" "$scratch/cache" "$scratch/wrong"
 make_fixture()
 {
+    cp "$scratch/source/kernel.itb" "$scratch/kernel-payload"
+    cat > "$scratch/kernel.dts" <<EOF
+/dts-v1/;
+/ { images { kernel { data = /incbin/("$scratch/kernel-payload"); }; };
+configurations { default = "c"; c { fw,version = <65536>; }; }; };
+EOF
+    dtc -I dts -O dtb -o "$scratch/source/kernel.itb" "$scratch/kernel.dts"
+
     kernel_hash=$(sha256sum "$scratch/source/kernel.itb" | cut -d ' ' -f 1)
     rootfs_hash=$(sha256sum "$scratch/source/rootfs.itb" | cut -d ' ' -f 1)
     cat > "$scratch/manifest.dts" <<EOF
@@ -31,6 +39,7 @@ make_fixture()
         default = "conf-1";
         conf-1 {
             fw,type = "release";
+            fw,version = <65536>;
             fw,product = "ti-am62x";
             fw,layout-id = "am62x-sd-ab-v1";
             fw,components = "kernel", "rootfs";
@@ -51,7 +60,7 @@ publish()
 }
 agent()
 {
-    "$src/ota-agent" --server "$url" --cache "$scratch/cache" \
+    "$src/fwctld" --server "$url" --cache "$scratch/cache" \
         --product ti-am62x --layout am62x-sd-ab-v1 "$@"
 }
 http()
@@ -79,15 +88,23 @@ url=${url%/}
 [ "$(http -o /dev/null -w '%{http_code}' "$url/latest")" = 404 ]
 http --fail "$url/healthz" | grep -qx ok
 printf 'kernel fixture\n' > "$scratch/source/kernel.itb"
-dd if=/dev/zero of="$scratch/source/rootfs.itb" bs=1024 count=257 2>/dev/null
+dd if=/dev/zero of="$scratch/rootfs-payload" bs=1024 count=257 2>/dev/null
+cat > "$scratch/rootfs.its" <<EOF
+/dts-v1/;
+/ { description = "rootfs"; #address-cells = <1>;
+images { rootfs { description = "rootfs"; data = /incbin/("$scratch/rootfs-payload"); type = "firmware"; arch = "arm64"; compression = "none"; }; };
+configurations { default = "c"; c { firmware = "rootfs"; }; }; };
+EOF
+mkimage -f "$scratch/rootfs.its" "$scratch/source/rootfs.itb" >/dev/null
 make_fixture
 publish 1
-http --fail "$url/" | grep -q '/releases/1/release.itb'
+http --fail "$url/" | grep -q 'upload-form'
+http --fail "$url/api/state" | grep -q '"latest":1'
 for f in release.itb kernel.itb rootfs.itb; do
     http --fail "$url/releases/1/$f" -o "$scratch/download"
     cmp "$scratch/download" "$scratch/source/$f"
 done
-http --fail -I "$url/releases/1/rootfs.itb" | tr -d '\r' | grep -q 'Content-Length: 263168'
+http --fail -I "$url/releases/1/rootfs.itb" | tr -d '\r' | grep -q "Content-Length: $(stat -c %s "$scratch/source/rootfs.itb")"
 for path in '/etc/passwd' '/releases/1/../manifest' '/releases/1/%2e%2e' '/releases/01/kernel.itb' '/releases/1/bootloader.itb'; do
     [ "$(http --path-as-is -o /dev/null -w '%{http_code}' "$url$path")" = 404 ]
 done
@@ -101,10 +118,10 @@ agent --once > "$scratch/repeat.log"
 [ "$record_inode" = "$(stat -c %i "$scratch/cache/current")" ]
 if grep -q Downloaded "$scratch/repeat.log"; then exit 1; fi
 expect_fail publish 1
-expect_fail "$src/ota-agent" --server "$url" --cache "$scratch/wrong" \
+expect_fail "$src/fwctld" --server "$url" --cache "$scratch/wrong" \
     --product imx6ull --layout am62x-sd-ab-v1 --once
 # Agent already running discovers the next publication without restarting.
-"$src/ota-agent" --server "$url" --cache "$scratch/cache" \
+"$src/fwctld" --server "$url" --cache "$scratch/cache" \
     --product ti-am62x --layout am62x-sd-ab-v1 --interval 1 > "$scratch/agent.log" 2>&1 &
 agent_pid=$!
 sleep 1
@@ -153,6 +170,6 @@ server_pid=
 expect_fail agent --once
 cmp "$scratch/cache/current" "$scratch/previous"
 expect_fail "$src/ota-server" --root "$scratch/feed" --port 70000
-expect_fail "$src/ota-agent" --server "$url" --cache "$scratch/cache" \
+expect_fail "$src/fwctld" --server "$url" --cache "$scratch/cache" \
     --product ti-am62x --layout am62x-sd-ab-v1 --interval 0
 printf 'PASS: publication, live polling, download integrity, cache preservation, locks and HTTP boundaries\n'

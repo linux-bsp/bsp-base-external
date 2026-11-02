@@ -1,0 +1,14 @@
+# Configure the LAN server before enabling. Transaction state is stored on the server.
+FWCTLD_ENABLED=0
+FWCTLD_SERVER=""
+FWCTLD_PRODUCT="ti-am62x"
+FWCTLD_LAYOUT="am62x-sd-ab-v1"
+FWCTLD_CACHE="/tmp/fwctld"
+FWCTLD_INTERVAL=60
+# Once enabled, automatically install newer releases and reboot.
+FWCTLD_AUTO_INSTALL=1
+# Empty: derive the stable device ID from eth0 MAC (colon replaced by hyphen).
+FWCTLD_DEVICE_ID=""
+
+# Mirror upgrade stages to the serial console; empty disables the mirror.
+FWCTLD_CONSOLE="/dev/console"

@@ -24,6 +24,12 @@
 			fw,layout-id = "am62x-sd-ab-v1";
 			fw,version = <1>;
 			fw,rollback-index = <0>;
+            fw,tag = "@FW_TAG@";
+            fw,firmware-id = "@FW_ID@";
+            fw,kernel-payload-bytes = <@FW_KERNEL_BYTES@>;
+            fw,rootfs-payload-bytes = <@FW_ROOTFS_BYTES@>;
+            fw,kernel-payload-sha256 = "@FW_KERNEL_PAYLOAD_HASH@";
+            fw,rootfs-payload-sha256 = "@FW_ROOTFS_PAYLOAD_HASH@";
 			fw,components = "kernel", "rootfs";
 			fw,kernel-file = "kernel.itb";
 			fw,kernel-sha256 = "@KERNEL_SHA256@";

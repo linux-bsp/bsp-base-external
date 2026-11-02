@@ -1,2 +1,7 @@
 /ota-server
-/ota-agent
+/fwctld
+/ota-page.h
+
+__pycache__/
+
+/ota-cli

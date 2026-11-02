@@ -1,5 +1,5 @@
 #define _XOPEN_SOURCE 700
-#include "ota-common.h"
+#include "ota-admin.h"
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -36,6 +36,43 @@ static int validate_fit(const char *directory, const struct release *r)
             property(fit, node, hash_keys[i], value, sizeof(value)) || strcmp(value, r->hash[i + 1]))
             return -1;
     return 0;
+}
+
+int ota_fit_version(const char *directory, unsigned long *version)
+{
+    char fit[OTA_PATH], config[128], node[256], value[64], *end;
+    if (ota_path(fit, directory, "release.itb") ||
+        property(fit, "/configurations", "default", config, sizeof(config)) ||
+        !ota_identifier(config))
+        return -1;
+    snprintf(node, sizeof(node), "/configurations/%s", config);
+    char *args[] = {"fdtget", "-t", "x", fit, node, "fw,version", NULL};
+    if (ota_run(args, value, sizeof(value)))
+        return -1;
+    value[strcspn(value, "\r\n")] = 0;
+    errno = 0;
+    *version = strtoul(value, &end, 16);
+    return errno || !*value || *end || !*version || *version > 0xffffffffUL ? -1 : 0;
+}
+
+int ota_inspect(const char *directory, struct release *r, unsigned long *version)
+{
+    char fit[OTA_PATH], config[128], node[256], path[OTA_PATH];
+    memset(r, 0, sizeof(*r));
+    r->version = 1; /* Draft metadata uses a placeholder publication number. */
+    if (ota_path(fit, directory, "release.itb") ||
+        property(fit, "/configurations", "default", config, sizeof(config)) ||
+        !ota_identifier(config))
+        return -1;
+    snprintf(node, sizeof(node), "/configurations/%s", config);
+    if (property(fit, node, "fw,product", r->product, sizeof(r->product)) ||
+        property(fit, node, "fw,layout-id", r->layout, sizeof(r->layout)) ||
+        !ota_identifier(r->product) || !ota_identifier(r->layout))
+        return -1;
+    for (int i = 0; i < 3; i++)
+        if (ota_path(path, directory, ota_files[i]) || ota_hash(path, r->hash[i], &r->size[i]))
+            return -1;
+    return validate_fit(directory, r) || ota_fit_version(directory, version) ? -1 : 0;
 }
 
 int ota_publish(int argc, char **argv)
@@ -97,8 +134,12 @@ int ota_publish(int argc, char **argv)
         fprintf(stderr, "FIT product/layout, filenames or component SHA256 mismatch\n");
         goto cleanup;
     }
+    if (ota_path(to, temp, "manifest") || ota_write(to, &r) || ota_quarantine_blocked(root, temp)) {
+        fprintf(stderr, "Firmware is quarantined or quarantine validation failed\n");
+        goto cleanup;
+    }
     /* Snapshot first; the atomic latest switch happens only after all files exist. */
-    if (ota_path(to, temp, "manifest") || ota_write(to, &r) || ota_sync_dir(temp) ||
+    if (ota_sync_dir(temp) ||
         rename(temp, target) || ota_sync_dir(releases))
         goto cleanup;
     snprintf(name, sizeof(name), ".latest-%ld", (long)getpid());

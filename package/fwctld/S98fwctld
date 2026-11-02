@@ -1,0 +1,64 @@
+#!/bin/sh
+
+[ -r /etc/default/fwctld ] && . /etc/default/fwctld
+[ -r /data/fwctld.conf ] && . /data/fwctld.conf
+PIDFILE=/var/run/fwctld.pid
+
+# Use shell builtins only: small BusyBox images need not provide tr.
+device_id_from_mac()
+{
+    IFS=: read -r mac1 mac2 mac3 mac4 mac5 mac6 < /sys/class/net/eth0/address || return 1
+    for octet in "$mac1" "$mac2" "$mac3" "$mac4" "$mac5" "$mac6"; do
+        case "$octet" in
+            [[:xdigit:]][[:xdigit:]]) ;;
+            *) return 1 ;;
+        esac
+    done
+    printf '%s-%s-%s-%s-%s-%s' "$mac1" "$mac2" "$mac3" "$mac4" "$mac5" "$mac6"
+}
+
+case "$1" in
+    start)
+        [ "${FWCTLD_ENABLED:-0}" = 1 ] || exit 0
+        [ -n "$FWCTLD_SERVER" ] || { echo "fwctld: set FWCTLD_SERVER" >&2; exit 1; }
+        mkdir -p "$FWCTLD_CACHE" || exit 1
+        set --
+        FWCTLD_CONSOLE=${FWCTLD_CONSOLE-/dev/console}
+        [ -z "$FWCTLD_CONSOLE" ] || set -- --console "$FWCTLD_CONSOLE"
+        if [ "${FWCTLD_AUTO_INSTALL:-0}" = 1 ]; then
+            if [ -z "$FWCTLD_DEVICE_ID" ] && [ -r /sys/class/net/eth0/address ]; then
+                FWCTLD_DEVICE_ID=$(device_id_from_mac) || {
+                    echo "fwctld: invalid eth0 MAC; set FWCTLD_DEVICE_ID" >&2
+                    exit 1
+                }
+            fi
+            [ -n "$FWCTLD_DEVICE_ID" ] || { echo "fwctld: set FWCTLD_DEVICE_ID" >&2; exit 1; }
+            set -- "$@" --auto-install --device "$FWCTLD_DEVICE_ID"
+        fi
+        start-stop-daemon -S -b -m -O /var/log/fwctld.log -p "$PIDFILE" -x /usr/sbin/fwctld -- \
+            --server "$FWCTLD_SERVER" --cache "$FWCTLD_CACHE" \
+            --product "$FWCTLD_PRODUCT" --layout "$FWCTLD_LAYOUT" \
+            --interval "${FWCTLD_INTERVAL:-60}" "$@"
+        ;;
+    stop)
+        if ! start-stop-daemon -K -t -p "$PIDFILE" -x /usr/sbin/fwctld >/dev/null 2>&1; then
+            rm -f "$PIDFILE"
+            exit 0
+        fi
+        start-stop-daemon -K -p "$PIDFILE" -x /usr/sbin/fwctld || exit 1
+        attempts=0
+        while start-stop-daemon -K -t -p "$PIDFILE" -x /usr/sbin/fwctld >/dev/null 2>&1; do
+            attempts=$((attempts + 1))
+            [ "$attempts" -le 10 ] || { echo "fwctld: stop timed out" >&2; exit 1; }
+            sleep 1
+        done
+        rm -f "$PIDFILE"
+        ;;
+    restart)
+        "$0" stop && "$0" start
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart}" >&2
+        exit 2
+        ;;
+esac

@@ -36,3 +36,9 @@ password-file paths, timeouts, and protocol flags. Select one with
 `bmc-test --device-id <id>`. Local password files under
 `rootfs-overlay/etc/libbmc/` are ignored by Git; the corresponding `.example`
 files document their expected names.
+
+## 分阶段固件验证
+
+正常 eMMC 启动的 FIT 校验、dm-verity 镜像生成和上板验证见 [分阶段完整性验证](verified-boot.md)。
+
+- [v1.0.16 OTA 验证记录](releases/v1.0.16.md)

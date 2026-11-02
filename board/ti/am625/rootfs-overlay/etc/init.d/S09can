@@ -64,6 +64,10 @@ start()
 stop()
 {
 	printf 'Stopping CAN: '
+	if [ -d /sys/module/pdm ]; then
+		echo 'FAIL (stop PDM before bringing CAN down)'
+		return 1
+	fi
 	for can_iface in $CAN_INTERFACES; do
 		interface_present "$can_iface" || continue
 		"$CAN_IP" link set dev "$can_iface" down 2>/dev/null || true

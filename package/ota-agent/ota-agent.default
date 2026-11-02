@@ -1,7 +1,0 @@
-# Opt in after configuring the LAN server and mounting persistent /data.
-OTA_ENABLED=0
-OTA_SERVER=""
-OTA_PRODUCT="ti-am62x"
-OTA_LAYOUT="am62x-sd-ab-v1"
-OTA_CACHE="/data/ota"
-OTA_INTERVAL=60

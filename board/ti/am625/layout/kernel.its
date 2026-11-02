@@ -15,6 +15,15 @@
 			hash-1 { algo = "sha256"; };
 		};
 
+        recovery {
+            description = "Independent rootfs recovery initramfs";
+            type = "ramdisk";
+            arch = "arm64";
+            os = "linux";
+            compression = "none";
+            hash-1 { algo = "sha256"; };
+        };
+
 		fdt {
 			description = "AM62x device tree";
 			type = "flat_dt";
@@ -36,6 +45,7 @@
 			fw,build-time-minutes = <@FW_BUILD_TIME_MINUTES@>;
 			kernel = "kernel";
 			fdt = "fdt";
+            ramdisk = "recovery";
 		};
 	};
 };

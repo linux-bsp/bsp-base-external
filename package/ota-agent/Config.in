@@ -1,9 +1,0 @@
-config BR2_PACKAGE_OTA_AGENT
-	bool "ota-agent"
-	depends on BR2_USE_MMU
-	depends on BR2_PACKAGE_EDK_FW
-	select BR2_PACKAGE_LIBCURL_CURL
-	help
-	  C polling client for BSP OTA publications. Downloads and verifies
-	  releases without flashing or rebooting. Requires sha256sum (enabled
-	  in the AM62x BusyBox config). Configure /etc/default/ota-agent.
