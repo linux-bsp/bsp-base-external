@@ -265,12 +265,7 @@ int ota_draft_finish(const char *root, const char *temp, char id[32])
 
 static void version_string(unsigned long n, char out[40])
 {
-    if (n < 256)
-        snprintf(out, 40, "%lu.0.0", n);
-    else if (n >= 65536)
-        snprintf(out, 40, "%lu.%lu.%lu", n >> 16, (n >> 8) & 255, n & 255);
-    else
-        snprintf(out, 40, "%lu", n);
+    snprintf(out, 40, "%lu.%lu.%lu", n >> 16, (n >> 8) & 255, n & 255);
 }
 
 static unsigned long long published_number(const char *directory)

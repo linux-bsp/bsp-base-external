@@ -42,3 +42,4 @@ files document their expected names.
 正常 eMMC 启动的 FIT 校验、dm-verity 镜像生成和上板验证见 [分阶段完整性验证](verified-boot.md)。
 
 - [v1.0.16 OTA 验证记录](releases/v1.0.16.md)
+- [v0.0.1 / 4a7e87c2 OTA 验证记录](releases/v0.0.1-4a7e87c2.md)

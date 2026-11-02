@@ -82,6 +82,9 @@ class CLI(unittest.TestCase):
                 '/configurations/conf-1', 'fw,tag'], env=admin.ENV, text=True).strip()
             self.assertEqual(version.decode().split(),
                 ['BSPOTAVERSION1', str(publication), tag, declared.stdout.strip()])
+            entry = next(x for x in self.state()['releases'] if x['publication'] == publication)
+            self.assertEqual(entry['tag'], tag)
+            self.assertEqual(entry['firmware_id'], declared.stdout.strip())
         root_hash=identity.decode().split()[6]
         restore_status, restore_package = self.request('GET', f'/recovery/ti-am62x/am62x-sd-ab-v1/rootfs/{root_hash}/rootfs.itb')
         self.assertEqual(restore_status, 200)

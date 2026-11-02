@@ -12,3 +12,7 @@ FWCTLD_DEVICE_ID=""
 
 # Mirror upgrade stages to the serial console; empty disables the mirror.
 FWCTLD_CONSOLE="/dev/console"
+
+# Wait for this interface to have link and IP before OTA requests.
+# Empty disables the local gate (for custom/multiple-interface routing).
+FWCTLD_INTERFACE="eth0"

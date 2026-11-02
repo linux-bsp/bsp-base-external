@@ -117,6 +117,19 @@ fw,kernel-sha256 = "{kernel}"; fw,rootfs-sha256 = "{rootfs}";
     def assert_no_partial(self):
         self.assertEqual(list((self.feed / 'drafts').glob('.upload-*')), [])
 
+    def test_small_packed_version_tags(self):
+        for value, tag in ((1, 'v0.0.1'), (256, 'v0.1.0')):
+            ident = self.draft(self.bundle(self.fixture(version=value)))
+            draft = next(x for x in self.state()['drafts'] if x['id'] == ident)
+            self.assertEqual(draft['firmware_version'], tag[1:])
+            self.assertEqual(draft['tag'], tag)
+            status, body = self.publish(ident)
+            self.assertEqual(status, 200, body)
+            publication = json.loads(body)['publication']
+            entry = next(x for x in self.state()['releases'] if x['publication'] == publication)
+            self.assertEqual(entry['tag'], tag)
+            self.assertEqual(self.request('GET', f'/releases/{publication}/version')[1].decode().split()[2], tag)
+
     def test_upload_then_explicit_publish_and_agent(self):
         ident = self.draft()
         state = self.state()

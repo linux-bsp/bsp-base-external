@@ -37,6 +37,16 @@ class InitScript(unittest.TestCase):
         self.override('FWCTLD_CONSOLE=""\n')
         self.assertEqual(self.run_script().returncode,0)
         self.assertNotIn('--console',self.calls.read_text())
+    def test_network_interface_default_override_disable(self):
+        self.assertEqual(self.run_script().returncode,0)
+        self.assertIn("--interface\neth0\n",self.calls.read_text())
+        self.override("FWCTLD_INTERFACE=eth1\n")
+        self.assertEqual(self.run_script().returncode,0)
+        self.assertIn("--interface\neth1\n",self.calls.read_text())
+        self.override('FWCTLD_INTERFACE=""\n')
+        self.assertEqual(self.run_script().returncode,0)
+        self.assertNotIn("--interface",self.calls.read_text())
+
     def test_new_service_paths(self):
         self.assertEqual(self.run_script().returncode,0)
         args=self.calls.read_text()

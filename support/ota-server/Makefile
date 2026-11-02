@@ -11,8 +11,8 @@ ota-page.h: admin.html embed-page.awk
 ota-server: ota-server.c ota-quarantine.c ota-identity.c ota-admin.c ota-admin.h ota-publish.c ota-common.c ota-common.h ota-device.c ota-history.c ota-report.c ota-device.h ota-page.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) ota-server.c ota-quarantine.c ota-identity.c ota-admin.c ota-publish.c ota-common.c ota-device.c ota-history.c ota-report.c $(LDFLAGS) -lz -o $@
 
-fwctld: fwctld-log.c fwctld-log.h fwctld.c fwctld-auto.c ota-common.c ota-common.h ota-report.c ota-device.h fwctld-auto.h
-	$(CC) $(CPPFLAGS) $(CFLAGS) fwctld.c fwctld-auto.c fwctld-log.c ota-common.c ota-report.c $(LDFLAGS) -o $@
+fwctld: fwctld-network.c fwctld-network.h fwctld-log.c fwctld-log.h fwctld.c fwctld-auto.c ota-common.c ota-common.h ota-report.c ota-device.h fwctld-auto.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) fwctld.c fwctld-auto.c fwctld-log.c fwctld-network.c ota-common.c ota-report.c $(LDFLAGS) -o $@
 
 ota-cli: ota-cli.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) ota-cli.c $(LDFLAGS) -o $@
@@ -22,6 +22,7 @@ test: all
 	python3 ./tests/test-admin.py
 	python3 ./tests/test-auto.py
 	python3 ./tests/test-init.py
+	python3 ./tests/test-network.py
 	python3 ./tests/test-history.py
 	python3 ./tests/test-quarantine.py
 	python3 ./tests/test-shutdown.py

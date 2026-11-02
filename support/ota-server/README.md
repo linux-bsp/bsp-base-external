@@ -459,3 +459,11 @@ kernel/rootfs SHA256、回退源及新发布编号）。这些是本地持久审
 
 验证：`make -C bsp-base-external/support/ota-server test`，其中
 `tests/test-quarantine.py` 覆盖全局停发、自动回退、重复事件、重启恢复、旧原因缺失和分类计数。
+
+## 网口就绪与后台等待
+
+`S40network` 先配置网络，`S98fwctld` 再启动守护进程；配置静态 IP 完成不代表 PHY 已建立链路。启动脚本默认传递 `--interface eth0`，fwctld 每秒检查该网卡是否 UP、RUNNING 且具有非空 IPv4 地址或非 link-local 的 IPv6 地址。条件满足前不查询 OTA 事务、发布版本或下载固件，只在进入等待状态时打印一次提示。网络恢复后立即恢复检查；此机制不阻塞 rcS 和本机健康检查。运行中掉线也在下一次轮询时进入等待。
+
+可在 `/data/fwctld.conf` 设置 `FWCTLD_INTERFACE="eth1"`；设为空可关闭本地网卡检查，适用于自定义路由或多网卡环境。直接执行 fwctld 时按需指定 `--interface`。`--once` 在网卡尚未就绪时立即返回非零，不无限等待。
+
+本地就绪不保证路由、DNS 或 OTA 服务可达；此类 HTTP 错误仍打印原因并按配置的轮询间隔重试。不使用 ping 作为门槛，避免服务端禁用 ICMP 时误阻止升级。

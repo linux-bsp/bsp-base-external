@@ -25,6 +25,9 @@ case "$1" in
         set --
         FWCTLD_CONSOLE=${FWCTLD_CONSOLE-/dev/console}
         [ -z "$FWCTLD_CONSOLE" ] || set -- --console "$FWCTLD_CONSOLE"
+        # Let the daemon wait in the background; do not block rcS on a cable.
+        FWCTLD_INTERFACE=${FWCTLD_INTERFACE-eth0}
+        [ -z "$FWCTLD_INTERFACE" ] || set -- "$@" --interface "$FWCTLD_INTERFACE"
         if [ "${FWCTLD_AUTO_INSTALL:-0}" = 1 ]; then
             if [ -z "$FWCTLD_DEVICE_ID" ] && [ -r /sys/class/net/eth0/address ]; then
                 FWCTLD_DEVICE_ID=$(device_id_from_mac) || {

@@ -2,6 +2,7 @@
 #include "ota-common.h"
 #include "fwctld-auto.h"
 #include "fwctld-log.h"
+#include "fwctld-network.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -181,7 +182,7 @@ int main(int argc, char **argv)
     const char *server = NULL, *cache_arg = NULL, *product = NULL, *layout = NULL;
     unsigned long interval = 60;
     int once = 0, auto_install = 0, force = 0;
-    const char *device = NULL, *console = NULL;
+    const char *device = NULL, *console = NULL, *interface = NULL;
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--force")) { force = 1; continue; }
         if (!strcmp(argv[i], "--auto-install")) {
@@ -196,6 +197,8 @@ int main(int argc, char **argv)
             goto usage;
         if (!strcmp(argv[i], "--console"))
             console = argv[++i];
+        else if (!strcmp(argv[i], "--interface"))
+            interface = argv[++i];
         else if (!strcmp(argv[i], "--device"))
             device = argv[++i];
         else if (!strcmp(argv[i], "--server"))
@@ -215,6 +218,7 @@ int main(int argc, char **argv)
         } else
             goto usage;
     }
+    if (interface && (!*interface || strlen(interface) >= IF_NAMESIZE)) goto usage;
     if ((force && (!once || !auto_install)) || (auto_install && (!device || !ota_identifier(device))) || !server || !cache_arg || !product || !layout || !ota_identifier(product) ||
         !ota_identifier(layout) || (strncmp(server, "http://", 7) && strncmp(server, "https://", 8)) ||
         strchr(server, '?') || strchr(server, '#') || strlen(server) > 3000)
@@ -239,8 +243,18 @@ int main(int argc, char **argv)
     sigaction(SIGTERM, &action, NULL);
     sigaction(SIGINT, &action, NULL);
     fwctld_log("Started; polling every %lu seconds; automatic installation %s", interval, auto_install ? "enabled" : "disabled");
-    int rc;
+    int rc, waiting_for_network = 0;
     do {
+        if (interface && !fwctld_network_ready(interface)) {
+            if (!waiting_for_network)
+                fwctld_log("Waiting for network: %s needs link UP and an IP address; OTA checks deferred", interface);
+            waiting_for_network = 1;
+            rc = 1;
+            goto wait_for_next_check;
+        }
+        if (waiting_for_network)
+            fwctld_log("Network ready: %s; resuming OTA checks", interface);
+        waiting_for_network = 0;
         const char *stage = "transaction reconciliation";
         rc = auto_install ? fwctld_auto_reconcile(base, device, product, layout) : 0;
         if (!rc) {
@@ -256,10 +270,11 @@ int main(int argc, char **argv)
             if (once) fwctld_log("OTA %s failed; inspect preceding error", stage);
             else fwctld_log("OTA %s incomplete; retrying in %lu seconds", stage, interval);
         }
+wait_for_next_check:
         fflush(stdout);
         if (once || ota_stop)
             break;
-        struct timespec delay = {.tv_sec = (time_t)interval};
+        struct timespec delay = {.tv_sec = waiting_for_network ? 1 : (time_t)interval};
         while (nanosleep(&delay, &delay) && errno == EINTR && !ota_stop)
             ;
     } while (!ota_stop);
@@ -267,6 +282,6 @@ int main(int argc, char **argv)
     return ota_stop ? 0 : (rc ? 1 : 0);
 usage:
     fwctld_log("Usage: fwctld --server URL --cache DIR --product ID --layout ID "
-            "[--console PATH] [--interval SECONDS] [--once] [--auto-install --device ID] [--force (requires --once --auto-install)]\n");
+            "[--console PATH] [--interface IFACE] [--interval SECONDS] [--once] [--auto-install --device ID] [--force (requires --once --auto-install)]\n");
     return 1;
 }
