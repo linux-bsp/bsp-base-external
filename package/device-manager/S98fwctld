@@ -21,6 +21,14 @@ case "$1" in
     start)
         [ "${FWCTLD_ENABLED:-0}" = 1 ] || exit 0
         [ -n "$FWCTLD_SERVER" ] || { echo "[fwctld] [ERROR] set FWCTLD_SERVER" >&2; exit 1; }
+        case "$FWCTLD_CACHE" in
+            /data/*)
+                if ! mountpoint -q /data || [ ! -w /data ]; then
+                    echo "[fwctld] [WARN] persistent /data storage is unavailable; using volatile /tmp/fwctld cache" >&2
+                    FWCTLD_CACHE=/tmp/fwctld
+                fi
+                ;;
+        esac
         mkdir -p "$FWCTLD_CACHE" || exit 1
         set --
         FWCTLD_CONSOLE=${FWCTLD_CONSOLE-/dev/console}

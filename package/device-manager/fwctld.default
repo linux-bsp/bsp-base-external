@@ -3,7 +3,7 @@ FWCTLD_ENABLED=0
 FWCTLD_SERVER=""
 FWCTLD_PRODUCT="ti-am62x"
 FWCTLD_LAYOUT="am62x-sd-ab-v1"
-FWCTLD_CACHE="/tmp/fwctld"
+FWCTLD_CACHE="/data/fwctld"
 FWCTLD_INTERVAL=60
 # Once enabled, automatically install newer releases and reboot.
 FWCTLD_AUTO_INSTALL=1
