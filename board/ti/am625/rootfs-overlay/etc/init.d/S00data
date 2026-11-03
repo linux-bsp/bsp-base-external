@@ -1,0 +1,42 @@
+#!/bin/sh
+
+CONFIG=/etc/device-manager/storage.conf
+case "$1" in
+	start)
+		mkdir -p /data || exit 1
+		[ -r "$CONFIG" ] || {
+			echo '[data] [WARN] storage configuration unavailable; persistent storage disabled' >&2
+			exit 0
+		}
+		device=$(sed -n 's/^device=//p' "$CONFIG" | head -n 1)
+		filesystem=$(sed -n 's/^filesystem=//p' "$CONFIG" | head -n 1)
+		mountpoint=$(sed -n 's/^mountpoint=//p' "$CONFIG" | head -n 1)
+		options=$(sed -n 's/^options=//p' "$CONFIG" | head -n 1)
+		case "$device" in
+			/dev/mmcblk[0-9]p[0-9]*) ;;
+			*) echo '[data] [WARN] invalid block device; persistent storage disabled' >&2; exit 0 ;;
+		esac
+		[ "$filesystem" = ext4 ] && [ "$mountpoint" = /data ] || {
+			echo '[data] [WARN] unsupported storage configuration; persistent storage disabled' >&2
+			exit 0
+		}
+		case "$options" in *[!a-zA-Z0-9_,=-]*|'')
+			echo '[data] [WARN] invalid mount options; persistent storage disabled' >&2
+			exit 0
+			;;
+		esac
+		if mountpoint -q /data; then
+			echo '[data] [INFO] persistent storage already mounted'
+		elif [ ! -b "$device" ]; then
+			echo '[data] [WARN] data block device unavailable; persistent storage disabled' >&2
+		elif mount -t "$filesystem" -o "$options" "$device" /data; then
+			echo '[data] [INFO] persistent storage mounted on /data'
+		else
+			echo '[data] [WARN] data filesystem mount failed; persistent storage disabled' >&2
+		fi
+		;;
+	stop) ;;
+	*) echo "Usage: $0 {start|stop}" >&2; exit 2 ;;
+esac
+
+exit 0

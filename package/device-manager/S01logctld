@@ -3,10 +3,8 @@ PIDFILE=/run/logctld.pid
 case "$1" in
     start)
         mkdir -p /run/logctl /data /sys/fs/pstore
-        # Never mkfs here: existing data must survive OTA and rollback.
-        if ! mountpoint -q /data; then
-            mount -t ext4 -o nodev,nosuid /dev/mmcblk1p15 /data 2>/dev/null || true
-        fi
+        # /data is mounted by the board's S00data before target daemons start.
+        # Never mount or format board storage from a logging service.
         if mountpoint -q /data && [ -w /data ]; then
             mkdir -p /data/log/boots || exit 1
             root=/data/log/boots
