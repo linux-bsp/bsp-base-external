@@ -54,6 +54,14 @@ stop()
 	printf 'Stopping PDM: '
 	module_loaded || { echo "OK (not loaded)"; return 0; }
 
+	# The AM62x RS485 serdev close path can sleep in the OMAP8250 runtime-PM
+	# shutdown callback while modprobe is removing PDM. Keep the driver and its
+	# buses alive until reset; rcK sets this marker before stopping services.
+	if [ -e /run/shutdown ]; then
+		echo "OK (kept loaded for reboot)"
+		return 0
+	fi
+
 	# A terminated process may still be releasing its device file descriptors.
 	for attempt in 1 2 3; do
 		if modprobe -r "$MODULE"; then

@@ -64,6 +64,10 @@ start()
 stop()
 {
 	printf 'Stopping CAN: '
+	if [ -e /run/shutdown ]; then
+		echo 'OK (left active for reboot)'
+		return 0
+	fi
 	if [ -d /sys/module/pdm ]; then
 		echo 'FAIL (stop PDM before bringing CAN down)'
 		return 1

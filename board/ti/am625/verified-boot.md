@@ -61,15 +61,15 @@ make -C buildroot O="$PWD/output/am625" all
 恢复请求为：
 
 ```text
-GET /recovery/<product>/<layout>/rootfs/<payload-sha256>/rootfs.itb
+GET /recovery/<product>/<layout>/rootfs/<version>/<firmware-id>/<payload-sha256>/rootfs.itb
 ```
 
-服务器仅从已发布历史中选择产品、布局和实际 payload 哈希匹配的包；找不到返回 404，
-不会拿最新版本代替。发布历史应保留仍在运行的固件。服务端需要部署本次包含 rootfs 恢复接口的版本。
+服务器仅从已发布历史中选择产品、布局、固件版本、固件 ID 和实际 payload 哈希全部匹配的包；找不到返回 404，
+不会拿最新版本或同版本的其他构建代替。发布历史应保留仍在运行的固件。服务端需要部署包含对应恢复接口的版本。
 上传草稿但不发布，不会使该包进入恢复候选集。
 
-设备恢复时继续验证包格式、产品、布局、组件类型、rollback index、payload 长度与哈希，
-写入后逐块读回比较。此处是 initramfs 中对未挂载损坏槽的原位修复，不改变 kernel、另一槽或 metadata。
+设备恢复时继续验证包格式、产品、布局、组件版本、rollback index、payload 长度与哈希，
+写入后逐块读回比较。当前 rootfs 通过校验后，initramfs 也会检查另一 rootfs 槽，并在身份完整时尝试修复损坏内容；另一 deployment 继续保持 failed，直到升级与健康策略重新确认它。恢复不改变 kernel 或 A/B metadata。
 断电后 kernel/initramfs 仍可启动，再次检查并重试。常规 OTA 仍通过备用 deployment 安装完整版本。
 
 网络或恢复包暂不可用时每 30 秒重试，下载有超时和大小限制；不会挂载损坏 rootfs。
