@@ -1,5 +1,6 @@
 #!/bin/sh
 PIDFILE=/run/logctld.pid
+SYNC_STATUS=/run/logctl/sync-status
 case "$1" in
     start)
         mkdir -p /run/logctl /data /sys/fs/pstore
@@ -18,7 +19,36 @@ case "$1" in
         start-stop-daemon -S -b -m -O /dev/console -p "$PIDFILE" -x /usr/sbin/logctld -- --root "$root"
         ;;
     stop)
-        start-stop-daemon -K -p "$PIDFILE" -x /usr/sbin/logctld || true
+        if ! start-stop-daemon -K -t -p "$PIDFILE" -x /usr/sbin/logctld >/dev/null 2>&1; then
+            rm -f "$PIDFILE"
+            exit 0
+        fi
+        start-stop-daemon -K -p "$PIDFILE" -x /usr/sbin/logctld || exit 1
+        attempts=0
+        while start-stop-daemon -K -t -p "$PIDFILE" -x /usr/sbin/logctld >/dev/null 2>&1; do
+            attempts=$((attempts + 1))
+            [ "$attempts" -le 10 ] || {
+                echo "[logctld] [ERROR] stop timed out; final synchronization unconfirmed" >&2
+                exit 1
+            }
+            sleep 1
+        done
+        rm -f "$PIDFILE"
+        collector_state=unknown
+        sync_state=unknown
+        if [ -r "$SYNC_STATUS" ]; then
+            while IFS='=' read -r key value; do
+                case "$key" in
+                    collector-state) collector_state=$value ;;
+                    sync-state) sync_state=$value ;;
+                esac
+            done < "$SYNC_STATUS"
+        fi
+        if [ "$collector_state" != stopped ] || [ "$sync_state" != ok ]; then
+            echo "[logctld] [ERROR] collector exited without confirmed final synchronization; inspect logctl status" >&2
+            exit 1
+        fi
+        echo "[logctld] [INFO] collector stopped after final synchronization"
         ;;
     *) echo "Usage: $0 {start|stop}" >&2; exit 2 ;;
 esac
