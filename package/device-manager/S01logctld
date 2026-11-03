@@ -5,13 +5,14 @@ case "$1" in
         mkdir -p /run/logctl /data /sys/fs/pstore
         # /data is mounted by the board's S00data before target daemons start.
         # Never mount or format board storage from a logging service.
-        if mountpoint -q /data && [ -w /data ]; then
+        storage_state=$(cat /run/device-manager/storage-state 2>/dev/null)
+        if [ "$storage_state" = persistent ] && mountpoint -q /data && [ -w /data ]; then
             mkdir -p /data/log/boots || exit 1
             root=/data/log/boots
         else
             root=/run/logctl/boots
             mkdir -p "$root" || exit 1
-            echo '[logctld] [WARN] No writable data filesystem; logs are volatile until storage is provisioned'
+            echo "[logctld] [WARN] data storage state=${storage_state:-unknown}; logs are volatile until storage is healthy"
         fi
         mountpoint -q /sys/fs/pstore || mount -t pstore pstore /sys/fs/pstore 2>/dev/null || true
         start-stop-daemon -S -b -m -O /dev/console -p "$PIDFILE" -x /usr/sbin/logctld -- --root "$root"

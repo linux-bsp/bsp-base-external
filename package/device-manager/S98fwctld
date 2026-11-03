@@ -23,8 +23,9 @@ case "$1" in
         [ -n "$FWCTLD_SERVER" ] || { echo "[fwctld] [ERROR] set FWCTLD_SERVER" >&2; exit 1; }
         case "$FWCTLD_CACHE" in
             /data/*)
-                if ! mountpoint -q /data || [ ! -w /data ]; then
-                    echo "[fwctld] [WARN] persistent /data storage is unavailable; using volatile /tmp/fwctld cache" >&2
+                storage_state=$(cat /run/device-manager/storage-state 2>/dev/null)
+                if [ "$storage_state" != persistent ] || ! mountpoint -q /data || [ ! -w /data ]; then
+                    echo "[fwctld] [WARN] data storage state=${storage_state:-unknown}; using volatile /tmp/fwctld cache" >&2
                     FWCTLD_CACHE=/tmp/fwctld
                 fi
                 ;;

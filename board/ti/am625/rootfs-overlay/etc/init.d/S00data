@@ -1,39 +1,92 @@
 #!/bin/sh
 
 CONFIG=/etc/device-manager/storage.conf
+STATE_FILE=/run/device-manager/storage-state
+
+report()
+{
+	state=$1
+	message=$2
+	mkdir -p /run/device-manager
+	tmp="$STATE_FILE.$$"
+	if printf '%s\n' "$state" > "$tmp" && mv -f "$tmp" "$STATE_FILE"; then
+		:
+	else
+		rm -f "$tmp"
+		state=unavailable
+		message='cannot record storage state; persistent storage disabled'
+	fi
+	case "$state" in
+		persistent) echo "[data] [INFO] $message" ;;
+		*) echo "[data] [WARN] $message" >&2 ;;
+	esac
+}
+
 case "$1" in
 	start)
-		mkdir -p /data || exit 1
+		mkdir -p /data /run/device-manager || exit 1
 		[ -r "$CONFIG" ] || {
-			echo '[data] [WARN] storage configuration unavailable; persistent storage disabled' >&2
-			exit 0
+			report unavailable 'storage configuration unavailable; persistent storage disabled'
+			exit
 		}
 		device=$(sed -n 's/^device=//p' "$CONFIG" | head -n 1)
 		filesystem=$(sed -n 's/^filesystem=//p' "$CONFIG" | head -n 1)
 		mountpoint=$(sed -n 's/^mountpoint=//p' "$CONFIG" | head -n 1)
 		options=$(sed -n 's/^options=//p' "$CONFIG" | head -n 1)
+		minimum_free_kib=$(sed -n 's/^minimum_free_kib=//p' "$CONFIG" | head -n 1)
+		case "$minimum_free_kib" in
+			''|*[!0-9]*|????????*) minimum_free_kib=32768 ;;
+		esac
 		case "$device" in
 			/dev/mmcblk[0-9]p[0-9]*) ;;
-			*) echo '[data] [WARN] invalid block device; persistent storage disabled' >&2; exit 0 ;;
+			*) report unavailable 'invalid block device; persistent storage disabled'; exit ;;
 		esac
 		[ "$filesystem" = ext4 ] && [ "$mountpoint" = /data ] || {
-			echo '[data] [WARN] unsupported storage configuration; persistent storage disabled' >&2
-			exit 0
+			report unavailable 'unsupported storage configuration; persistent storage disabled'
+			exit
 		}
 		case "$options" in *[!a-zA-Z0-9_,=-]*|'')
-			echo '[data] [WARN] invalid mount options; persistent storage disabled' >&2
-			exit 0
+			report unavailable 'invalid mount options; persistent storage disabled'
+			exit
 			;;
 		esac
 		if mountpoint -q /data; then
-			echo '[data] [INFO] persistent storage already mounted'
+			:
 		elif [ ! -b "$device" ]; then
-			echo '[data] [WARN] data block device unavailable; persistent storage disabled' >&2
+			report unavailable 'data block device unavailable; persistent storage disabled'
+			exit
 		elif mount -t "$filesystem" -o "$options" "$device" /data; then
-			echo '[data] [INFO] persistent storage mounted on /data'
+			:
 		else
-			echo '[data] [WARN] data filesystem mount failed; persistent storage disabled' >&2
+			report unavailable 'data filesystem mount failed; persistent storage disabled'
+			exit
 		fi
+		mount_options=
+		while read -r source path type options rest; do
+			if [ "$path" = /data ]; then
+				mount_options=$options
+				break
+			fi
+		done < /proc/mounts
+		case ",$mount_options," in
+			*,ro,*) report read-only 'data filesystem is read-only; persistent storage disabled'; exit ;;
+			*,rw,*) ;;
+			*) report unavailable 'data mount state unavailable; persistent storage disabled'; exit ;;
+		esac
+		available_kib=$(df -Pk /data | { read -r header; read -r source blocks used available capacity path; printf '%s' "$available"; })
+		case "$available_kib" in
+			''|*[!0-9]*) report unavailable 'cannot determine free data space; persistent storage disabled'; exit ;;
+		esac
+		if [ "$available_kib" -lt "$minimum_free_kib" ]; then
+			report low-space "only ${available_kib} KiB free (minimum ${minimum_free_kib} KiB); persistent storage disabled"
+			exit
+		fi
+		probe="/data/.device-manager-write-test.$$"
+		(umask 077; : > "$probe") 2>/dev/null && rm -f "$probe" || {
+			report read-only 'data write probe failed; persistent storage disabled'
+			exit
+		}
+		report persistent 'data filesystem mounted read-write with sufficient free space'
 		;;
 	stop) ;;
 	*) echo "Usage: $0 {start|stop}" >&2; exit 2 ;;
