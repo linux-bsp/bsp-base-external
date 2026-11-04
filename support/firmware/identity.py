@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
-"""Bind finalized kernel/rootfs bytes into release metadata; never modify either image."""
-import argparse
+"""Align the kernel DTB and bind final payload bytes into release and boot metadata."""
 import hashlib
 import json
-import os
 from pathlib import Path
 import struct
 import subprocess
@@ -32,7 +30,7 @@ def factory_record(identity, components, sequence):
     return record
 
 
-def align_kernel_dtb(host, fit, dtb):
+def align_kernel_dtb(host, fit, dtb, max_size=None):
     """Inline DTB addresses must be 8-byte aligned for the deployed U-Boot."""
     data = dtb.read_bytes()
     if len(data) < 40 or data[:4] != bytes.fromhex('d00dfeed'):
@@ -54,14 +52,14 @@ def align_kernel_dtb(host, fit, dtb):
                             'fw,dtb-alignment-padding', '0'], check=True)
     if offset() % 8:
         raise ValueError('kernel FIT DTB alignment failed')
-    if fit.stat().st_size > 24 * 1024 * 1024:
-        raise ValueError('kernel FIT exceeds 24 MiB slot after alignment')
+    if max_size is not None and fit.stat().st_size > max_size:
+        raise ValueError('kernel FIT exceeds configured max_size after alignment')
 
 
-def render(host, images, template, output):
+def calculate(host, images, dtb=None, max_size=None):
     binary = host/'bin'
-    if os.environ.get('FW_DTB_FILE'):
-        align_kernel_dtb(host, images/'release/kernel.itb', images/os.environ['FW_DTB_FILE'])
+    if dtb is not None:
+        align_kernel_dtb(host, images/'release/kernel.itb', dtb, max_size)
     def prop(path, node, key, kind='s'):
         return subprocess.check_output([str(binary/'fdtget'), '-t', kind, str(path), node, key], text=True).strip()
     def digest(data): return hashlib.sha256(data).hexdigest()
@@ -83,27 +81,20 @@ def render(host, images, template, output):
     kh, rh = digest(kernel[:size]), digest(payload)
     identity = digest(f'BSPFWCONTENT1\nkernel {size} {kh}\nrootfs {len(payload)} {rh}\n'.encode())
     tag = f'v{version >> 16}.{(version >> 8) & 255}.{version & 255}'
-    values = {'KERNEL_SHA256': digest(kernel), 'ROOTFS_SHA256': digest(root.read_bytes()),
-              'FW_TAG': tag, 'FW_ID': identity, 'FW_KERNEL_PAYLOAD_HASH': kh,
-              'FW_ROOTFS_PAYLOAD_HASH': rh, 'FW_KERNEL_BYTES': f'0 {size}',
-              'FW_ROOTFS_BYTES': f'0 {len(payload)}'}
-    text = template.read_text()
-    for key, value in values.items(): text = text.replace('@'+key+'@', value)
-    if '@FW_' in text: raise ValueError('unexpanded identity placeholder')
-    output.write_text(text)
-    identity = dict(tag=tag, firmware_id=identity, version=version, kernel_bytes=size,
-                    kernel_sha256=kh, rootfs_bytes=len(payload), rootfs_sha256=rh)
+    return dict(tag=tag, firmware_id=identity, version=version, kernel_bytes=size,
+                kernel_sha256=kh, rootfs_bytes=len(payload), rootfs_sha256=rh)
+
+
+def write_metadata(host, images, identity):
+    binary = host/'bin'
+    def prop(path, key):
+        return int(subprocess.check_output([str(binary/'fdtget'), '-t', 'u', str(path),
+                                           '/configurations/conf-1', key], text=True).strip())
     (images/'firmware-identity.json').write_text(json.dumps(identity, indent=2)+'\n')
     components = []
     for name in ('bootloader', 'kernel', 'rootfs'):
         path = images/'release'/f'{name}.itb'
-        node = '/configurations/' + prop(path, '/configurations', 'default')
-        components.append(tuple(int(prop(path, node, key, 'u')) for key in
+        components.append(tuple(prop(path, key) for key in
             ('fw,version', 'fw,rollback-index', 'fw,build-time-minutes')))
     for copy in range(2):
         (images/f'meta{copy}.bin').write_bytes(factory_record(identity, components, copy + 1))
-
-if __name__ == '__main__':
-    p = argparse.ArgumentParser(description=__doc__)
-    for name in ('host','images','template','output'): p.add_argument('--'+name, required=True, type=Path)
-    a = p.parse_args(); render(a.host, a.images, a.template, a.output)

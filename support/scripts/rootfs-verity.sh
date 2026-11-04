@@ -25,7 +25,6 @@ root_hash=$(sed -n 's/^Root hash:[[:space:]]*//p' "$record")
 [ "${#root_hash}" -eq 64 ] || exit 1
 LC_ALL=C "$veritysetup" verify --format=1 --hash=sha256 --no-superblock     --data-block-size=4096 --hash-block-size=4096 --data-blocks="$blocks"     --hash-offset="$bytes" --salt="$salt" "$verity_image" "$verity_image" "$root_hash"
 total=$(stat -c %s "$verity_image")
-[ "$total" -le 134217728 ] || { echo "Verity rootfs exceeds AM62x 128 MiB slot" >&2; exit 1; }
 hash_blocks=$(((total - bytes) / 4096))
 [ "$hash_blocks" -gt 0 ] || exit 1
 fdtput="$host_dir/bin/fdtput"

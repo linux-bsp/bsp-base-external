@@ -15,6 +15,50 @@ EDK=WORKSPACE/'device-manager/firmware'
 FDT=WORKSPACE/'uboot/u-boot-2026.04/scripts/dtc/libfdt'
 
 class FITIntegrity(unittest.TestCase):
+    def test_generated_release_and_all_components_match_the_device_engine(self):
+        with tempfile.TemporaryDirectory(prefix='fw-release-parser-') as name:
+            root=Path(name);source=root/'check.c';binary=root/'check'
+            source.write_text(r'''
+#include "dm_fw_fit_priv.h"
+#include "dm/hwid.h"
+#include <string.h>
+static const char *device;
+int dm_hwid_read(const char *config, struct dm_hwid_status *result) {
+    (void)config;strcpy(result->text,device);return 0;
+}
+const char *fw_component_name(enum fw_component c) {
+    static const char *names[]={"bootloader","kernel","rootfs"};
+    return c<FW_COMPONENT_COUNT ? names[c] : "invalid";
+}
+int main(int argc,char **argv) {
+    if(argc!=6)return 2;
+    device=argv[1];struct fw_layout layout={0};struct fw_fit fit;
+    struct fw_release release;strcpy(layout.hwid_config,"test-hwid");
+    if(fw_fit_open(&fit,argv[2],&layout))return 1;
+    int rc=fw_fit_verify_release(&layout,&fit,&release);fw_fit_close(&fit);
+    if(rc||!release.identity.valid)return 1;
+    for(int i=3;i<6;i++) {
+        struct fw_package package;unsigned char digest[32];
+        if(fw_fit_open(&fit,argv[i],&layout))return 1;
+        rc=fw_fit_verify_package(&layout,&fit,&package);
+        if(!rc&&(package.version!=release.version||package.rollback_index!=release.rollback_index))rc=1;
+        if(!rc&&package.component!=FW_COMPONENT_BOOTLOADER)
+            rc=fw_fit_check_identity(&fit,package.component,&release.identity);
+        fw_fit_close(&fit);if(rc||fw_sha256_file(argv[i],digest))return 1;
+        for(unsigned j=0;j<release.count;j++)
+            if(release.component[j].component==package.component&&memcmp(release.component[j].sha256,digest,32))return 1;
+    }
+    return 0;
+}
+''')
+            subprocess.run(['cc','-D_POSIX_C_SOURCE=200809L','-std=c11','-Wall','-Wextra','-Werror',
+                '-I'+str(EDK/'src'),'-I'+str(EDK.parent/'identity/include'),'-I'+str(FDT),'-I'+str(HOST/'include'),
+                str(source),str(EDK/'src/dm_fw_fit.c'),str(FDT/'fdt.c'),str(FDT/'fdt_ro.c'),
+                '-L'+str(HOST/'lib'),'-Wl,-rpath,'+str(HOST/'lib'),'-lcrypto','-o',str(binary)],check=True)
+            fits=[str(IMAGES/'release'/f'{part}.itb') for part in ('release','kernel','rootfs','bootloader')]
+            self.assertEqual(subprocess.run([str(binary),'1010001000110000',*fits]).returncode,0)
+            self.assertNotEqual(subprocess.run([str(binary),'1010001000111000',*fits]).returncode,0)
+
     def test_recovery_ramdisk_is_verified(self):
         with tempfile.TemporaryDirectory(prefix='fw-fit-test-') as name:
             root=Path(name);source=root/'check.c';binary=root/'check'
@@ -61,7 +105,7 @@ int main(int argc, char **argv) {
             self.assertNotEqual(subprocess.run([str(binary),str(missing)]).returncode,0)
 
     def test_inline_dtb_alignment_is_repeatable(self):
-        spec=importlib.util.spec_from_file_location('identity_generator',WORKSPACE/'bsp-base-external/support/scripts/firmware-identity.py')
+        spec=importlib.util.spec_from_file_location('identity_generator',WORKSPACE/'bsp-base-external/support/firmware/identity.py')
         module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
         dtb=next(IMAGES.glob('verity-*.dtb'))
         data=dtb.read_bytes()

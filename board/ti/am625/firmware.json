@@ -1,5 +1,52 @@
 {
-    "hwids": [
-        "1010001000110000"
-    ]
+    "schema_version": 1,
+    "description": "TI AM62x firmware",
+    "version": "0.0.1",
+    "rollback_index": 0,
+    "hwids": ["1010001000110000"],
+    "architecture": "arm64",
+    "components": {
+        "bootloader": {
+            "description": "TI AM62x bootloader update",
+            "os": "u-boot",
+            "firmware": "tiboot3",
+            "loadables": ["tispl", "uboot"],
+            "images": [
+                {"name": "tiboot3", "file": "tiboot3.bin", "architecture": "arm", "max_size": 1048576},
+                {"name": "tispl", "file": "tispl.bin_unsigned", "max_size": 2097152},
+                {"name": "uboot", "file": "u-boot.img_unsigned", "max_size": 2097152}
+            ]
+        },
+        "kernel": {
+            "description": "TI AM62x Linux kernel",
+            "os": "linux",
+            "max_size": 25165824,
+            "kernel": "kernel",
+            "fdt": "fdt",
+            "ramdisk": "recovery",
+            "images": [
+                {"name": "kernel", "file": "Image.gz", "type": "kernel", "compression": "gzip", "load": "0x82000000", "entry": "0x82000000"},
+                {"name": "recovery", "file": "recovery.cpio.gz", "type": "ramdisk", "generate": "recovery-initramfs"},
+                {"name": "fdt", "file": "k3-am625-alientek.dtb", "type": "flat_dt"}
+            ]
+        },
+        "rootfs": {
+            "description": "TI AM62x root filesystem",
+            "os": "linux",
+            "firmware": "rootfs",
+            "verity": true,
+            "images": [
+                {"name": "rootfs", "file": "rootfs.squashfs", "max_size": 134217728}
+            ]
+        }
+    },
+    "release": {
+        "description": "TI AM62x firmware release",
+        "manifest": "TI AM62x OTA kernel and rootfs release",
+        "components": ["kernel", "rootfs"]
+    },
+    "factory": {
+        "layout": "layout/genimage_sdcard.cfg",
+        "environment": "etc/u-boot-initial-env"
+    }
 }

@@ -4,37 +4,33 @@
 kernel and U-Boot configurations, BusyBox configuration, root filesystem
 overlay, and local source overrides in this directory.
 
-`layout/genimage_ti.cfg` builds the bootloader, kernel, and root filesystem
-FIT components. `support/scripts/firmware-image.sh` then creates a release
-manifest and uses `layout/genimage_sdcard.cfg` for the RAW A/B SD image.
+[firmware.json](firmware.json) 是固件打包的统一板级配置，包含版本、HWID、架构、
+各组件输入文件、加载地址、initramfs、verity 和默认升级组件。
+构建器自动生成四份 ITS，并调用 mkimage 生成 bootloader、kernel、rootfs 和 release ITB。
+ITS 保存在构建输出中供检查，不需要维护板级 ITS 或组件 genimage 配置。
 
-## 固件支持的 HWID
+## 配置与构建
 
-统一修改板级 [firmware.json](firmware.json)：
+- 调整版本、HWID、输入镜像及加载地址：修改 `firmware.json`。
+- 软件版本默认保持 `0.0.1`；内容 ID 和组件 SHA256 在构建时自动计算。
+- `images` 描述实际输入；架构默认继承顶层 `architecture`，R5 镜像可单独指定 `arm`。
+- `release.components` 当前为 kernel/rootfs；上传后服务端按包内全部 HWID 发布。
+- `factory.layout` 指定独立的物理存储布局，当前为 `layout/genimage_sdcard.cfg`。
 
-```json
-{
-    "hwids": ["1010001000110000"]
-}
-```
-
-支持多个硬件时，在同一个 `hwids` 数组中增加完整的 16 字符小写 HWID。
-构建脚本一次读取配置，统一生成 release、bootloader、kernel、rootfs 的
-`fw,hwids` 属性。四份 ITS 模板只保留 `@FW_HWIDS@` 占位符，无需逐份修改。
-缺失、空白、重复、无效 HWID 或模板遗漏占位符都会使构建失败。
-
-重新运行现有输出目录的 `make all` 即可重新打包，不需要重新应用 defconfig。
-构建产物中的 `images/firmware.json` 保存本次实际使用的配置，供追溯。
-OTA server 上传后解析 FIT 的声明，自动按整份列表发布。
-设备自身的 HWID 由 U-Boot 环境提供，普通 OTA 保持该身份。
-
-配置与模板测试：
+在已配置的 workspace 输出目录执行：
 
 ```sh
-python3 support/scripts/tests/test-firmware-templates.py
+make -C buildroot O="$PWD/output/am625" all
 ```
 
-测试环境需要 PATH 中提供 `dtc`、`fdtget`，可使用 Buildroot 的 host/bin。
+首次配置使用 `alientek_am62x_defconfig`。旧输出目录升级构建流程时，将 `.config` 中
+`BR2_ROOTFS_POST_IMAGE_SCRIPT_ARGS` 更新为
+`-c $(BR2_EXTERNAL_LINUX_BSP_PATH)/board/ti/am625/firmware.json`，保留其余工具链配置。
+
+构建产物包括 `images/firmware.json`（已解析配置）、`firmware-identity.json`、
+`release/*.its`、`release/*.itb` 和工厂镜像。设备自身 HWID 由 U-Boot 环境保存。
+
+字段、模块和测试命令见 [统一固件生成器](../../../support/firmware/README.md)。
 
 The image contains two 64 KiB metadata copies, two 24 MiB kernel slots, and
 two 128 MiB root filesystem slots. The first stage bootloader occupies the
@@ -75,3 +71,4 @@ files document their expected names.
 - [v0.0.1 / 6cee5c9d OTA 验证记录](releases/v0.0.1-6cee5c9d.md)
 - [v0.0.1 / 5ad4aa1e OTA 验证记录](releases/v0.0.1-5ad4aa1e.md)
 - [v0.0.1 / 64373f72 公共 HWID 配置验证](releases/v0.0.1-64373f72.md)
+- [v0.0.1 / 07071f2d 统一 JSON 生成固件验证](releases/v0.0.1-07071f2d.md)
