@@ -61,7 +61,7 @@ make -C buildroot O="$PWD/output/am625" all
 恢复请求为：
 
 ```text
-GET /recovery/<product>/<layout>/rootfs/<version>/<firmware-id>/<payload-sha256>/rootfs.itb
+GET /recovery/<HWID>/rootfs/<version>/<firmware-id>/<payload-sha256>/rootfs.itb
 ```
 
 服务器仅从已发布历史中选择产品、布局、固件版本、固件 ID 和实际 payload 哈希全部匹配的包；找不到返回 404，

@@ -20,8 +20,6 @@
 		conf-1 {
 			description = "TI AM62x firmware release";
 			fw,type = "release";
-			fw,product = "ti-am62x";
-			fw,layout-id = "am62x-sd-ab-v1";
             fw,hwids = "1010001000110000";
 			fw,version = <1>;
 			fw,rollback-index = <0>;

@@ -47,9 +47,10 @@ case "$1" in
             [ -n "$FWCTLD_DEVICE_ID" ] || { echo "[fwctld] [ERROR] set FWCTLD_DEVICE_ID" >&2; exit 1; }
             set -- "$@" --auto-install --device "$FWCTLD_DEVICE_ID"
         fi
+        FWCTLD_HWID=$(/usr/sbin/fwctl hwid value) || exit 1
         start-stop-daemon -S -b -m -O /var/log/fwctld.log -p "$PIDFILE" -x /usr/sbin/fwctld -- \
             --server "$FWCTLD_SERVER" --cache "$FWCTLD_CACHE" \
-            --product "$FWCTLD_PRODUCT" --layout "$FWCTLD_LAYOUT" \
+            --hwid "$FWCTLD_HWID" \
             --interval "${FWCTLD_INTERVAL:-60}" "$@"
         ;;
     stop)
