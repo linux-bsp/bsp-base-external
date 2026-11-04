@@ -20,7 +20,7 @@
 		conf-1 {
 			description = "TI AM62x firmware release";
 			fw,type = "release";
-            fw,hwids = "1010001000110000";
+            fw,hwids = @FW_HWIDS@;
 			fw,version = <1>;
 			fw,rollback-index = <0>;
             fw,tag = "@FW_TAG@";

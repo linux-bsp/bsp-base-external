@@ -27,10 +27,17 @@ GENIMAGE_CFG="${CONFIG_DIR}/$(basename -- "${GENIMAGE_CFG}")"
 MKIMAGE="${HOST_DIR}/bin/mkimage"
 PATH="${HOST_DIR}/bin:${HOST_DIR}/sbin:${PATH}"
 export PATH
-RELEASE_TEMPLATE="${CONFIG_DIR}/release.its.in"
+RELEASE_TEMPLATE="${BINARIES_DIR}/release/release.its.in"
 MEDIA_CFG="${CONFIG_DIR}/genimage_sdcard.cfg"
 
 [ -x "${MKIMAGE}" ] || die "mkimage is not available"
+
+ITS_LIST="$(sed -n "s#^[[:space:]]*its[[:space:]]*=[[:space:]]*\"\([^\"]*\)\".*#\1#p" "${GENIMAGE_CFG}" | sort -u)"
+FW_BUILD_TIME_MINUTES="$(($(date +%s) / 60))"
+[ -n "${ITS_LIST}" ] || die "no FIT templates configured"
+"${HOST_DIR}/bin/python3" "$(dirname -- "$0")/firmware-templates.py" \
+    --config "${CONFIG_DIR}/../firmware.json" --layout "${CONFIG_DIR}" \
+    --images "${BINARIES_DIR}" --build-time "${FW_BUILD_TIME_MINUTES}" ${ITS_LIST}
 
 if [ -z "${FW_DTB_FILE:-}" ] && [ -n "${BR2_CONFIG:-}" ]; then
 	DTB_LIST="$(sed -n "s#^BR2_LINUX_KERNEL_INTREE_DTS_NAME=\"\(.*\)\"\$#\1#p" "${BR2_CONFIG}")"
@@ -56,18 +63,6 @@ if grep -q '"recovery.cpio.gz"' "${GENIMAGE_CFG}"; then
         --target "${TARGET_DIR}" --host "${HOST_DIR}" \
         --board "${CONFIG_DIR}/.." --output "${BINARIES_DIR}/recovery.cpio.gz"
 fi
-
-ITS_LIST="$(sed -n "s#^[[:space:]]*its[[:space:]]*=[[:space:]]*\"\([^\"]*\)\".*#\1#p" "${GENIMAGE_CFG}" | sort -u)"
-FW_BUILD_TIME_MINUTES="$(($(date +%s) / 60))"
-
-for ITS_PATH in ${ITS_LIST}; do
-	ITS_SOURCE="${CONFIG_DIR}/$(basename -- "${ITS_PATH}")"
-	ITS_OUTPUT="${BINARIES_DIR}/${ITS_PATH}"
-	[ -f "${ITS_SOURCE}" ] || die "missing ITS file: ${ITS_SOURCE}"
-	mkdir -p "$(dirname -- "${ITS_OUTPUT}")"
-	sed "s/@FW_BUILD_TIME_MINUTES@/${FW_BUILD_TIME_MINUTES}/g" \
-		"${ITS_SOURCE}" >"${ITS_OUTPUT}"
-done
 
 PATH="${HOST_DIR}/bin:${HOST_DIR}/sbin:${PATH}" GENIMAGE_MKIMAGE="${MKIMAGE}" support/scripts/genimage.sh -c "${GENIMAGE_CFG}"
 
