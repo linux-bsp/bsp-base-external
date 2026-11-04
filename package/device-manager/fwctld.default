@@ -1,7 +1,9 @@
-# Configure the LAN server before enabling. Transaction state is stored on the server.
+# Configure the LAN server before enabling. Transactions and reports are local.
 FWCTLD_ENABLED=0
 FWCTLD_SERVER=""
 FWCTLD_CACHE="/data/fwctld"
+# Keep the small durable journal separate if the download cache falls back to RAM.
+FWCTLD_STATE="/data/fwctld-state"
 FWCTLD_INTERVAL=60
 # Once enabled, automatically install newer releases and reboot.
 FWCTLD_AUTO_INSTALL=1
