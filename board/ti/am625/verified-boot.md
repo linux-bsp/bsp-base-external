@@ -5,7 +5,7 @@
 正常 eMMC 启动采用 `U-Boot → kernel FIT → /init 脚本 → fwctl init → dm-verity → switch_root → 正式系统`。
 恢复环境在 RAM 中运行，PDM、业务服务和磁盘上的 rootfs 都不是它的前提。
 
-1. U-Boot 按 deployment 读取 kernel FIT，验证 kernel、设备树和 recovery ramdisk 的哈希。
+1. U-Boot 按 deployment 读取 kernel FIT，验证 kernel、设备树和 initramfs 的哈希。
 2. `fw verity-args` 验证参数并确认 FIT 包含 ramdisk，设置 `rdinit=/init`。
    环境 schema 为 7；正常启动不再通过 `dm-mod.create` 提前创建根映射。
 3. initramfs 中的 脚本 `/init` 执行 `/usr/sbin/fwctl init` 挂载运行时文件系统，维护看门狗，
@@ -27,12 +27,12 @@
 
 ## 镜像与构建
 
-- `recovery.cpio.gz`：fwctl、BusyBox、curl、必要 ELF 依赖和恢复配置。
+- `initramfs.cpio.gz`：fwctl、BusyBox、curl、必要 ELF 依赖和恢复配置；随 kernel FIT 存放，无独立物理分区。
   不包含 PDM 模块、业务进程或完整 rootfs。
 - `rootfs-verity.squashfs`：4096 字节对齐的 rootfs 数据，后接 SHA256 哈希树，无 verity superblock。
 - `verity-<原DTB>`：保存 root hash、salt、数据/哈希块数，以及完整 payload 的长度和 SHA256。
   它作为 kernel FIT 中的 fdt image 受到哈希校验。原始 DTB 保留用于调试。
-- `release/kernel.itb`：包含 kernel、设备树和 recovery ramdisk，必须小于固定 24 MiB 内核槽。
+- `release/kernel.itb`：包含 kernel、设备树和 initramfs，必须小于固定 24 MiB 内核槽。
 - `release/rootfs.itb`：封装完整 verity payload，写入现有 128 MiB rootfs 槽。
 - `sdcard.img`：包含配套 bootloader、kernel A/B 和 rootfs A/B 的工厂镜像。
 
@@ -145,7 +145,7 @@ Buildroot 的 `/lib64 -> lib` 和 `/usr/lib64 -> lib`，而 ARM64 加载器默�
 ```sh
 python3 bsp-base-external/support/fw-recovery/tests/test-loader.py \
   --qemu /path/to/qemu-aarch64 \
-  --image output/am625/images/recovery.cpio.gz
+  --image output/am625/images/initramfs.cpio.gz
 ```
 
 测试禁止依赖主机库路径或 ld.so.cache，执行 fwctl init、curl 和 BusyBox

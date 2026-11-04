@@ -59,7 +59,7 @@ int main(int argc,char **argv) {
             self.assertEqual(subprocess.run([str(binary),'1010001000110000',*fits]).returncode,0)
             self.assertNotEqual(subprocess.run([str(binary),'1010001000111000',*fits]).returncode,0)
 
-    def test_recovery_ramdisk_is_verified(self):
+    def test_initramfs_ramdisk_is_verified(self):
         with tempfile.TemporaryDirectory(prefix='fw-fit-test-') as name:
             root=Path(name);source=root/'check.c';binary=root/'check'
             source.write_text(r'''
@@ -88,7 +88,7 @@ int main(int argc, char **argv) {
             subprocess.run(['cc','-D_POSIX_C_SOURCE=200809L','-std=c11','-Wall','-Wextra','-Werror',
                 '-I'+str(EDK/'src'),'-I'+str(EDK.parent/'identity/include'),'-I'+str(FDT),'-I'+str(HOST/'include'),str(source),str(EDK/'src/dm_fw_fit.c'),
                 str(FDT/'fdt.c'),str(FDT/'fdt_ro.c'),'-L'+str(HOST/'lib'),'-Wl,-rpath,'+str(HOST/'lib'),'-lcrypto','-o',str(binary)],check=True)
-            fit=IMAGES/'release/kernel.itb';ramdisk=(IMAGES/'recovery.cpio.gz').read_bytes()
+            fit=IMAGES/'release/kernel.itb';ramdisk=(IMAGES/'initramfs.cpio.gz').read_bytes()
             self.assertEqual(subprocess.run([str(binary),str(fit)]).returncode,0)
             for n in range(2):
                 aligned=root/f'alignment-{n}.itb';shutil.copyfile(fit,aligned)

@@ -109,7 +109,7 @@ def build(target, board, host, output):
         shutil.copyfile(board/'recovery.conf',root/'etc/fw-recovery.conf')
         (root/'etc/fw-recovery.conf').chmod(0o644)
         (root/'etc/resolv.conf').write_text('')
-        shutil.copyfile(Path(__file__).with_name('recovery-init'), root/'init')
+        shutil.copyfile(Path(__file__).with_name('initramfs-init'), root/'init')
         (root/'init').chmod(0o755)
         # Required handoff and network applets must be provided by BusyBox config.
         for name in ('bin/sh','sbin/switch_root','sbin/ifup','sbin/ifdown'):

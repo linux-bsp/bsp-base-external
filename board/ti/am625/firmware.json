@@ -23,10 +23,10 @@
             "max_size": 25165824,
             "kernel": "kernel",
             "fdt": "fdt",
-            "ramdisk": "recovery",
+            "ramdisk": "initramfs",
             "images": [
                 {"name": "kernel", "file": "Image.gz", "type": "kernel", "compression": "gzip", "load": "0x82000000", "entry": "0x82000000"},
-                {"name": "recovery", "file": "recovery.cpio.gz", "type": "ramdisk", "generate": "recovery-initramfs"},
+                {"name": "initramfs", "file": "initramfs.cpio.gz", "type": "ramdisk", "generate": "initramfs"},
                 {"name": "fdt", "file": "k3-am625-alientek.dtb", "type": "flat_dt"}
             ]
         },

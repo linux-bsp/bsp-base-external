@@ -38,7 +38,7 @@ def build(config_path, images, host, target):
         for image in item['images']:
             if 'generate' not in image: size_limit(files[name][image['name']], image)
             elif not (config.board / 'recovery.conf').is_file():
-                raise ValueError('generated recovery initramfs requires board recovery.conf')
+                raise ValueError('generated initramfs requires board recovery.conf')
     if 'factory' in config.data:
         factory = config.data['factory']
         if not (config.board / factory['layout']).is_file(): raise ValueError('factory layout not found')
@@ -64,10 +64,10 @@ def build(config_path, images, host, target):
         files['rootfs'][settings['rootfs']['firmware']] = verified
         files['kernel'][settings['kernel']['fdt']] = dtb = verified_dtb
     for image in settings['kernel']['images']:
-        if image.get('generate') == 'recovery-initramfs':
+        if image.get('generate') == 'initramfs':
             destination = files['kernel'][image['name']]
             destination.parent.mkdir(parents=True, exist_ok=True)
-            run([host / 'bin/python3', SCRIPTS / 'build-recovery-initramfs.py',
+            run([host / 'bin/python3', SCRIPTS / 'build-initramfs.py',
                  '--target', target, '--board', config.board, '--host', host, '--output', destination], env)
     minutes = int(time.time()) // 60
     if not 0 <= minutes <= 0xffffffff: raise ValueError('build time exceeds FIT uint32')

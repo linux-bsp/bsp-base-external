@@ -126,8 +126,8 @@ def load(path):
                 if not image['max_size']: raise ValueError('image max_size must be positive')
             inputs.append(image['file'])
             if 'generate' in image:
-                if image['generate'] != 'recovery-initramfs' or name != 'kernel' or image['type'] != 'ramdisk':
-                    raise ValueError('recovery-initramfs requires a kernel ramdisk image')
+                if image['generate'] != 'initramfs' or name != 'kernel' or image['type'] != 'ramdisk':
+                    raise ValueError('initramfs generation requires a kernel ramdisk image')
                 if image['file'] in generated: raise ValueError('duplicate generated image path')
                 generated.add(image['file'])
         referenced = []

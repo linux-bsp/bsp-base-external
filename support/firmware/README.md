@@ -30,7 +30,10 @@
 rootfs 载荷限制在 verity 数据与哈希树生成后再次检查，内核限制在 DTB 对齐调整后再次检查。
 这些限制须与对应板级物理分区容量一致。
 
-内核 ramdisk 镜像可设置 `generate: "recovery-initramfs"`，由现有恢复工具和 ELF 依赖生成 initramfs。
+内核 ramdisk 镜像设置 `name: "initramfs"`、`file: "initramfs.cpio.gz"` 和
+`generate: "initramfs"`，由 `../scripts/build-initramfs.py` 收集现有工具和 ELF 依赖生成。
+FIT 配置通过 `ramdisk: "initramfs"` 引用该镜像；它随 kernel FIT 存放，无独立物理分区。
+其中 `/init` 脚本调用 `fwctl init`，负责正常启动的 Rootfs 校验、切换根文件系统和异常恢复。
 rootfs 可设置 `verity: true`，此时要求内核有 fdt、ramdisk 引用；生成器保留原 DTB，
 生成带验证参数的 DTB 和包含哈希树的 rootfs，然后封装到相应 FIT。
 

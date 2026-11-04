@@ -37,7 +37,7 @@ class FirmwareImage(unittest.TestCase):
         self.payload = b'rootfs test content\x00' * 1024
         for name, payload in [('tiboot3.bin', b'r5'), ('tispl.bin_unsigned', b'spl'),
                               ('u-boot.img_unsigned', b'uboot'), ('Image.gz', gzip.compress(b'kernel')),
-                              ('recovery.cpio.gz', gzip.compress(b'initramfs')), ('rootfs.squashfs', self.payload)]:
+                              ('initramfs.cpio.gz', gzip.compress(b'initramfs')), ('rootfs.squashfs', self.payload)]:
             (self.images / name).write_bytes(payload)
         subprocess.run([str(HOST / 'bin/dtc'), '-I', 'dts', '-O', 'dtb', '-o',
                         str(self.images / 'k3-am625-alientek.dtb')],
@@ -73,7 +73,9 @@ class FirmwareImage(unittest.TestCase):
         self.assertEqual(self.prop('kernel', 'load', 'x', '/images/kernel'), '82000000')
         self.assertEqual(self.prop('kernel', 'compression', node='/images/kernel'), 'gzip')
         self.assertEqual(self.prop('bootloader', 'loadables'), 'tispl uboot')
-        self.assertEqual(self.prop('kernel', 'ramdisk'), 'recovery')
+        self.assertEqual(self.prop('kernel', 'ramdisk'), 'initramfs')
+        self.assertEqual(self.prop('kernel', 'type', node='/images/initramfs'), 'ramdisk')
+        self.assertEqual(self.prop('kernel', 'algo', node='/images/initramfs/hash-1'), 'sha256')
         self.assertEqual(self.prop('release', 'fw,components'), 'kernel rootfs')
         self.assertEqual(self.prop('release', 'fw,firmware-id'), identity['firmware_id'])
         self.assertEqual(identity['rootfs_sha256'], hashlib.sha256(self.payload).hexdigest())
@@ -97,7 +99,7 @@ class FirmwareImage(unittest.TestCase):
         boot['images'] = [{'name': 'uboot', 'file': 'u-boot.img_unsigned'}]
         boot['firmware'] = 'uboot'; boot['loadables'] = []
         kernel = self.data['components']['kernel']
-        kernel.pop('ramdisk'); kernel['images'] = [i for i in kernel['images'] if i['name'] != 'recovery']
+        kernel.pop('ramdisk'); kernel['images'] = [i for i in kernel['images'] if i['name'] != 'initramfs']
         kernel['images'][0].update(load='0x80800000', entry='0x80800000')
         self.build()
         self.assertEqual(self.prop('bootloader', 'firmware'), 'uboot')
@@ -142,7 +144,7 @@ class FirmwareImage(unittest.TestCase):
                      lambda d: d['components']['kernel']['images'][0].update(type=[]),
                      lambda d: d['components']['kernel']['images'][0].update(compression=[]),
                      lambda d: d['components']['kernel']['images'][1].update(name='kernel'),
-                     lambda d: d['components']['kernel']['images'][0].update(generate='recovery-initramfs'),
+                     lambda d: d['components']['kernel']['images'][0].update(generate='initramfs'),
                      lambda d: d['components']['bootloader'].update(loadables=['tispl', 'tispl']),
                      lambda d: d['components']['rootfs'].update(verity='true'),
                      lambda d: d['components']['rootfs'].update(verity=True) or d['components']['kernel'].pop('ramdisk'),
