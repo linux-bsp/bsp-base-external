@@ -12,6 +12,7 @@ import time
 from config import COMPONENTS, load
 from fit import component, release
 from identity import calculate, write_metadata
+from layout import validate as validate_layout
 
 SCRIPTS = Path(__file__).resolve().parents[1] / 'scripts'
 
@@ -46,9 +47,13 @@ def build(config_path, images, host, target):
             raise ValueError('factory default environment not found')
         if not Path('support/scripts/genimage.sh').is_file():
             raise ValueError('run the factory image build from the Buildroot directory')
+    layout_report = validate_layout(config, host, target,
+                                    Path(os.environ['BUILD_DIR']) if os.environ.get('BUILD_DIR') else None)
     output = images / 'release'
     output.mkdir(parents=True, exist_ok=True)
     (images / 'firmware.json').write_text(json.dumps(config.data, indent=4) + '\n')
+    if layout_report:
+        (images / 'layout-validation.json').write_text(json.dumps(layout_report, indent=2) + '\n')
     env = dict(os.environ, PATH=str(host / 'bin') + ':' + str(host / 'sbin') + ':' + os.environ['PATH'],
                BINARIES_DIR=str(images), HOST_DIR=str(host), TARGET_DIR=str(target))
     dtb = files['kernel'].get(settings['kernel'].get('fdt'))

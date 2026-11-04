@@ -32,6 +32,7 @@ class FirmwareImage(unittest.TestCase):
         self.path = self.root / 'firmware.json'
         self.data = json.loads((BOARD / 'firmware.json').read_text())
         self.data.pop('factory')
+        self.data.pop('validation', None)
         self.data['components']['rootfs']['verity'] = False
         self.data['components']['kernel']['images'][1].pop('generate')
         self.payload = b'rootfs test content\x00' * 1024

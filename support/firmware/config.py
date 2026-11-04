@@ -68,7 +68,7 @@ class Firmware:
 def load(path):
     data = json.loads(path.read_text(), object_pairs_hook=unique_keys)
     object_keys(data, {'schema_version', 'description', 'version', 'rollback_index', 'hwids',
-                      'architecture', 'components', 'release', 'factory'},
+                      'architecture', 'components', 'release', 'factory', 'validation'},
                 {'schema_version', 'description', 'version', 'hwids', 'architecture', 'components', 'release'})
     if type(data['schema_version']) is not int or data['schema_version'] != 1:
         raise ValueError('unsupported firmware schema_version')
@@ -159,7 +159,7 @@ def load(path):
             raise ValueError('verity requires one uncompressed rootfs image')
     for file in generated:
         if inputs.count(file) != 1: raise ValueError('generated input aliases another image')
-    reserved = {'firmware.json', 'firmware-identity.json', 'meta0.bin', 'meta1.bin'}
+    reserved = {'firmware.json', 'firmware-identity.json', 'layout-validation.json', 'meta0.bin', 'meta1.bin'}
     reserved |= {f'release/{name}.{suffix}' for name in (*COMPONENTS, 'release') for suffix in ('its', 'itb')}
     if reserved.intersection(inputs): raise ValueError('input collides with generated metadata/FIT output')
     release = data['release']
@@ -173,4 +173,14 @@ def load(path):
     if 'factory' in data:
         object_keys(data['factory'], {'layout', 'environment'}, {'layout'})
         for value in data['factory'].values(): relative_path(value)
+    if 'validation' in data:
+        object_keys(data['validation'], {'linux_layout', 'uboot_dtbs'}, {'linux_layout', 'uboot_dtbs'})
+        relative_path(data['validation']['linux_layout'])
+        dtbs = data['validation']['uboot_dtbs']
+        if (not isinstance(dtbs, list) or not 1 <= len(dtbs) <= 8 or
+                any(not isinstance(value, str) for value in dtbs) or len(set(dtbs)) != len(dtbs)):
+            raise ValueError('validation requires 1..8 unique U-Boot DTB paths')
+        for value in dtbs: relative_path(value)
+        if 'factory' not in data or 'environment' not in data['factory']:
+            raise ValueError('layout validation requires factory layout and environment')
     return Firmware(data, path.resolve().parent, version)

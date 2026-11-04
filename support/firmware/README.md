@@ -16,6 +16,7 @@
 | `components` | bootloader、kernel、rootfs 的输入和启动关系 |
 | `release` | 发布说明及本次升级包含的组件 |
 | `factory` | 可选的工厂存储布局和默认环境来源 |
+| `validation` | 可选的独立布局一致性检查来源，不生成分区配置 |
 
 组件的 `images` 每项具有 `name`、`file`；`file` 相对于 Buildroot images 目录。
 `description`、`architecture`、`os` 可以按镜像覆盖；组件 `os` 由镜像继承。
@@ -29,6 +30,24 @@
 `max_size` 使用字节数：镜像级限制实际载荷大小，组件级限制整个 ITB 大小。
 rootfs 载荷限制在 verity 数据与哈希树生成后再次检查，内核限制在 DTB 对齐调整后再次检查。
 这些限制须与对应板级物理分区容量一致。
+
+## RAW 布局一致性检查
+
+AM625 的 `validation.linux_layout` 相对于板级目录；`validation.uboot_dtbs`
+相对于 `BUILD_DIR`，同时检查 A53 和 R5 的实际 DTB 及其构建 `.config`。
+生成前核对 Linux 源配置与已安装配置、12 个区域的偏移/容量、工厂 genimage、
+默认环境中的 blkdevparts、两份环境的编译偏移与 `/etc/fw_env.config`、HWID allowlist
+和 JSON 容量上限。任何差异都会停止生成，输出明确指出区域和配置来源。
+通过后在 images 中保存 `layout-validation.json`，包括区域表与九份输入的 SHA256。
+
+当前检查用于板卡现有 RAW MMC 布局，不迁移 GPT、运行设备的分区或环境。
+同一 HWID 的已部署布局仍应保持不变；全部配置自洽不代表可以在线改变分区。
+单独编译 U-Boot 不会调用此检查，最终打包必须使用相符的构建产物；缺少依赖会拒绝打包。
+
+```sh
+HOST_DIR="$PWD/output/am625-time-ui/host" \
+python3 bsp-base-external/support/firmware/tests/test_layout.py
+```
 
 内核 ramdisk 镜像设置 `name: "initramfs"`、`file: "initramfs.cpio.gz"` 和
 `generate: "initramfs"`，由 `../scripts/build-initramfs.py` 收集现有工具和 ELF 依赖生成。

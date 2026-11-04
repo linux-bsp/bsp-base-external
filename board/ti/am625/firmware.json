@@ -45,6 +45,10 @@
         "manifest": "TI AM62x OTA kernel and rootfs release",
         "components": ["kernel", "rootfs"]
     },
+    "validation": {
+        "linux_layout": "rootfs-overlay/etc/device-manager/firmware.conf",
+        "uboot_dtbs": ["uboot-custom/u-boot.dtb", "ti-k3-r5-loader-custom/u-boot.dtb"]
+    },
     "factory": {
         "layout": "layout/genimage_sdcard.cfg",
         "environment": "etc/u-boot-initial-env"
