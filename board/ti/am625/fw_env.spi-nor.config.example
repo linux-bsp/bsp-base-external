@@ -1,0 +1,5 @@
+# Example: two independently erasable 64 KiB copies within one MTD partition.
+# Linux offsets below are relative to the MTD partition. U-Boot uses flash offsets.
+# device                    offset    envsize   erasesize
+/dev/mtd/by-name/uboot-env   0x00000   0x10000   0x10000
+/dev/mtd/by-name/uboot-env   0x10000   0x10000   0x10000

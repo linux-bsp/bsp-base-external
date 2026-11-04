@@ -83,6 +83,8 @@ def build(target, board, host, output):
 
         for name in ('bin/busybox','usr/sbin/fwctl','usr/bin/curl','etc/device-manager/firmware.conf','etc/network/interfaces','usr/share/udhcpc/default.script'):
             copy(name)
+        if (target/'etc/fw_env.config').is_file():
+            copy('etc/fw_env.config')
         config={}
         for line in (root/'etc/device-manager/firmware.conf').read_text().splitlines():
             if '=' in line and not line.lstrip().startswith('#'):

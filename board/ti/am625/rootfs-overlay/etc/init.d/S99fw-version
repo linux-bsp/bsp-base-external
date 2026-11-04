@@ -5,6 +5,9 @@
 
 case "$1" in
     start|restart|reload)
+        if ! /usr/sbin/fwctl hwid show; then
+            echo "[fwctl] [ERROR] device HWID unavailable" >&2
+        fi
         if ! /usr/sbin/fwctl --config "${FWCTL_CONFIG:-/etc/device-manager/firmware.conf}" version; then
             echo "[fwctl] [ERROR] running firmware version unavailable" >&2
         fi

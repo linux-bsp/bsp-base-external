@@ -25,6 +25,8 @@ GENIMAGE_CFG="$3"
 CONFIG_DIR="$(CDPATH= cd -- "$(dirname -- "${GENIMAGE_CFG}")" && pwd)"
 GENIMAGE_CFG="${CONFIG_DIR}/$(basename -- "${GENIMAGE_CFG}")"
 MKIMAGE="${HOST_DIR}/bin/mkimage"
+PATH="${HOST_DIR}/bin:${HOST_DIR}/sbin:${PATH}"
+export PATH
 RELEASE_TEMPLATE="${CONFIG_DIR}/release.its.in"
 MEDIA_CFG="${CONFIG_DIR}/genimage_sdcard.cfg"
 
@@ -86,6 +88,10 @@ if [ -f "${RELEASE_TEMPLATE}" ]; then
 fi
 
 if [ -f "${MEDIA_CFG}" ]; then
+    if grep -q '"uboot-env0.bin"' "${MEDIA_CFG}"; then
+        "${HOST_DIR}/bin/python3" "$(dirname -- "$0")/hwid-env-factory.py" \
+            --input "${TARGET_DIR}/etc/u-boot-initial-env" --output "${BINARIES_DIR}"
+    fi
 	PATH="${HOST_DIR}/bin:${HOST_DIR}/sbin:${PATH}" support/scripts/genimage.sh -c "${MEDIA_CFG}"
 fi
 
