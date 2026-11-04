@@ -15,17 +15,37 @@ wait_until_stable()
 	checks=6
 	interval=5
 	count=0
+	attempt=0
+	limit=24
+	waiting=0
 
-	while [ "$count" -lt "$checks" ]; do
+	while [ "$attempt" -lt "$limit" ]; do
 		[ "$interval" -eq 0 ] || sleep "$interval"
-		if ! health_check; then
-			echo "[fwctl] [ERROR] health check failed; deployment remains pending" >&2
-			return 1
-		fi
-		count=$((count + 1))
+		attempt=$((attempt + 1))
+		health_check > /run/fwctl-health.last 2>&1
+		result=$?
+		case "$result" in
+			0)
+				waiting=0
+				count=$((count + 1))
+				[ "$count" -lt "$checks" ] || return 0
+				;;
+			75)
+				count=0
+				if [ "$waiting" -eq 0 ]; then
+					cat /run/fwctl-health.last >&2
+					waiting=1
+				fi
+				;;
+			*)
+				cat /run/fwctl-health.last >&2
+				echo "[fwctl] [ERROR] boot health failed" >&2
+				return 1
+				;;
+		esac
 	done
-
-	return 0
+	echo "[fwctl] [ERROR] boot health did not stabilize within the observation deadline" >&2
+	return 1
 }
 
 deployment_is_confirmed()
@@ -62,9 +82,21 @@ mark_good_worker()
 	trap 'rm -f "$PIDFILE"' EXIT
 	trap 'exit 0' HUP INT TERM
 
-	wait_until_stable || return 0
+	if ! wait_until_stable; then
+		record_mark_good_failure
+		status=$(/usr/sbin/fwctl --config "${FWCTL_CONFIG:-/etc/device-manager/firmware.conf}" status 2>/dev/null)
+		if printf '%s\n' "$status" | grep -q "^active: .* pending: ${deployment} "; then
+			if /usr/sbin/fwctl --config "${FWCTL_CONFIG:-/etc/device-manager/firmware.conf}" mark-bad "$deployment"; then
+				echo "[fwctl] [ERROR] candidate rejected by boot health; rebooting to the confirmed deployment" >&2
+				sync
+				reboot
+			fi
+		fi
+		return 1
+	fi
 	if deployment_is_confirmed "$deployment"; then
 		printf '%s\n' "$deployment" > /run/fwctl-boot-confirmed
+		/usr/sbin/fwctl recovery maintain
 		return 0
 	fi
 	if /usr/sbin/fwctl \
@@ -72,6 +104,7 @@ mark_good_worker()
 		mark-good; then
 		printf '%s\n' "$deployment" > /run/fwctl-boot-confirmed
 		echo "[fwctl] [INFO] current deployment marked good"
+		/usr/sbin/fwctl recovery maintain
 		return 0
 	fi
 
@@ -135,6 +168,7 @@ case "$1" in
 			0|1) mark_good_worker "$2" ;;
 			*) exit 2 ;;
 		esac
+		exit $?
 		;;
 	*)
 		echo "Usage: $0 {start|stop|restart|reload}" >&2

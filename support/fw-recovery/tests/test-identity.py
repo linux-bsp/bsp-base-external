@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate real release identities, factory records and U-Boot/EDK interoperability."""
+"""Validate real release identities, factory records and U-Boot/Linux interoperability."""
 import json
 import os
 from pathlib import Path
@@ -8,7 +8,7 @@ import subprocess
 import tempfile
 
 WORKSPACE = Path(__file__).resolve().parents[4]
-HOST = WORKSPACE/'output/am625/host'
+HOST = Path(os.environ.get('HOST_DIR', WORKSPACE/'output/am625/host'))
 IMAGES = Path(os.environ.get('FW_TEST_IMAGES', WORKSPACE/'output/am625/images'))
 EDK = WORKSPACE/'device-manager/firmware'
 FDT = WORKSPACE/'uboot/u-boot-2026.04/scripts/dtc/libfdt'
@@ -27,10 +27,13 @@ with tempfile.TemporaryDirectory(prefix='fw-identity-') as directory:
     source.write_text(r'''
 #include "dm_fw_fit_priv.h"
 #include "dm_fw_storage_priv.h"
+#include "dm/hwid.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
 static unsigned char media[2][FW_METADATA_SIZE];
+int dm_hwid_read(const char *config, struct dm_hwid_status *status)
+{ (void)config; strcpy(status->text,"1010001000110000"); return 0; }
 int fw_storage_read_metadata(struct fw_storage *s, unsigned c, void *p, size_t n)
 { (void)s; memcpy(p, media[c], n); return 0; }
 int fw_storage_write_metadata(struct fw_storage *s, unsigned c, const void *p, size_t n)
@@ -39,7 +42,7 @@ int main(int argc, char **argv)
 {
     assert(argc == 6);
     struct fw_layout layout = {0}; struct fw_fit fit; struct fw_release release;
-    strcpy(layout.product, "ti-am62x"); strcpy(layout.layout_id, "am62x-sd-ab-v1");
+    strcpy(layout.hwid_config, "test-hwid");
     if (fw_fit_open(&fit, argv[1], &layout)) return 1;
     int rc = fw_fit_verify_release(&layout, &fit, &release);
     fw_fit_close(&fit);
@@ -73,7 +76,7 @@ int main(int argc, char **argv)
 ''')
     binary = root/'identity'
     run(['cc', '-std=c11', '-D_POSIX_C_SOURCE=200809L', '-Wall', '-Wextra', '-Werror',
-         '-I'+str(EDK/'src'), '-I'+str(EDK/'include'), '-I'+str(FDT), '-I'+str(HOST/'include'),
+         '-I'+str(EDK/'src'), '-I'+str(EDK/'include'), '-I'+str(WORKSPACE/'device-manager/identity/include'), '-I'+str(FDT), '-I'+str(HOST/'include'),
          source, EDK/'src/dm_fw_fit.c', EDK/'src/dm_fw_metadata.c',
          FDT/'fdt.c', FDT/'fdt_ro.c', '-L'+str(HOST/'lib'), '-Wl,-rpath,'+str(HOST/'lib'),
          '-lcrypto', '-o', binary])
@@ -104,12 +107,12 @@ int main(int argc, char **argv)
     commands = ['mmc dev 0']
     for i in range(2):
         commands += [f'host load hostfs - 1000000 {root}/meta{i}.bin', f'mmc write 1000000 {i*8:x} 8']
-    commands += ['fw status', 'fw mark-good 0', 'fw status']
+    commands += ['fwctl status', 'fwctl mark-good 0', 'fwctl status']
     for i in range(2):
         commands += [f'mmc read 1000000 {i*8:x} 8', f'host save hostfs - 1000000 {root}/meta{i}.bin 1000']
     commands += ['poweroff']
     result = run([SANDBOX, '-T', '-c', '; '.join(commands)], cwd=root, timeout=60)
     assert f"tag={identity['tag']} id={identity['firmware_id'][:8]}" in result.stdout, result.stdout
     assert identity['firmware_id'] not in result.stdout
-    run(args)  # Decode U-Boot's rewritten record with production EDK code.
-    print('PASS: release tag/ID binding, payload mismatch rejection, factory metadata, EDK -> U-Boot -> EDK')
+    run(args)  # Decode U-Boot's rewritten record with production Linux code.
+    print('PASS: release tag/ID binding, payload mismatch rejection, factory metadata, Linux -> U-Boot -> Linux')

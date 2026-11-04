@@ -35,6 +35,11 @@ cp $BUILD_DIR/ti-k3-boot-firmware-*/ti-connectivity/* $TARGET_DIR/lib/firmware/t
 
 ln -snf /run/dropbear "$TARGET_DIR/etc/dropbear"
 
+# The initramfs and rootfs maintenance tool use the same board recovery settings.
+board_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd) || exit 1
+install -D -m 0644 "$board_dir/recovery.conf" \
+    "$TARGET_DIR/etc/device-manager/recovery.conf" || exit 1
+
 # Remove paths used before BMC configuration was consolidated under
 # /etc/libbmc. Buildroot overlays do not remove deleted source files from an
 # incremental target directory.
