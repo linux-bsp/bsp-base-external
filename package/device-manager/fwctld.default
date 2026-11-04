@@ -2,6 +2,8 @@
 FWCTLD_ENABLED=0
 FWCTLD_SERVER=""
 FWCTLD_CACHE="/data/fwctld"
+# Keep newest completed packages plus current; 0 disables idle cleanup.
+FWCTLD_CACHE_KEEP=2
 # Keep the small durable journal separate if the download cache falls back to RAM.
 FWCTLD_STATE="/data/fwctld-state"
 FWCTLD_INTERVAL=60

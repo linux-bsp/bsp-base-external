@@ -21,6 +21,7 @@ case "$1" in
     start)
         [ "${FWCTLD_ENABLED:-0}" = 1 ] || exit 0
         [ -n "$FWCTLD_SERVER" ] || { echo "[fwctld] [ERROR] set FWCTLD_SERVER" >&2; exit 1; }
+        cache_store=$FWCTLD_CACHE
         case "$FWCTLD_CACHE" in
             /data/*)
                 storage_state=$(cat /run/device-manager/storage-state 2>/dev/null)
@@ -51,6 +52,7 @@ case "$1" in
         start-stop-daemon -S -b -m -O /var/log/fwctld.log -p "$PIDFILE" -x /usr/sbin/fwctld -- \
             --server "$FWCTLD_SERVER" --cache "$FWCTLD_CACHE" \
             --state-dir "${FWCTLD_STATE:-/data/fwctld-state}" \
+            --persistent-cache "$cache_store" --keep-cached "${FWCTLD_CACHE_KEEP:-2}" \
             --hwid "$FWCTLD_HWID" \
             --interval "${FWCTLD_INTERVAL:-60}" "$@"
         ;;
