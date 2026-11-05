@@ -68,6 +68,12 @@ worker_running()
 	kill -0 "$pid" 2>/dev/null
 }
 
+record_boot_event()
+{
+    [ ! -x /usr/sbin/logctl ] || /usr/sbin/logctl boot-event "$1" ||
+        echo "[fwctl] [WARN] boot event could not be persisted" >&2
+}
+
 record_mark_good_failure()
 {
 	failure_file=${FWCTL_BOOT_FAILURES:-/run/rcS.critical}
@@ -88,6 +94,7 @@ mark_good_worker()
 		if printf '%s\n' "$status" | grep -q "^active: .* pending: ${deployment} "; then
 			if /usr/sbin/fwctl --config "${FWCTL_CONFIG:-/etc/device-manager/firmware.conf}" mark-bad "$deployment"; then
 				echo "[fwctl] [ERROR] candidate rejected by boot health; rebooting to the confirmed deployment" >&2
+				record_boot_event health-rejected
 				sync
 				reboot
 			fi
@@ -96,6 +103,7 @@ mark_good_worker()
 	fi
 	if deployment_is_confirmed "$deployment"; then
 		printf '%s\n' "$deployment" > /run/fwctl-boot-confirmed
+		record_boot_event health-confirmed
 		/usr/sbin/fwctl recovery maintain
 		return 0
 	fi
@@ -104,6 +112,7 @@ mark_good_worker()
 		mark-good; then
 		printf '%s\n' "$deployment" > /run/fwctl-boot-confirmed
 		echo "[fwctl] [INFO] current deployment marked good"
+		record_boot_event health-confirmed
 		/usr/sbin/fwctl recovery maintain
 		return 0
 	fi

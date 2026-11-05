@@ -12,6 +12,10 @@ fi
 #
 # Stop the supervisor from respawning services while they are being stopped.
 : > /run/shutdown || exit 1
+if [ -x /usr/sbin/logctl ]; then
+    /usr/sbin/logctl boot-event shutdown ||
+        echo "[logctl] [WARN] shutdown intent could not be persisted" >&2
+fi
 
 # we need to reverse the order here, sort -r would be no less fragile
 # shellcheck disable=SC2045
