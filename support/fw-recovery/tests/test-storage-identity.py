@@ -11,8 +11,8 @@ import unittest
 import zlib
 
 WORKSPACE=Path(__file__).resolve().parents[4]
-EDK=WORKSPACE/'device-manager'
-HOST=WORKSPACE/'output/am625/host'
+SOURCE=WORKSPACE/'device-manager'
+HOST=Path(os.environ.get('HOST_DIR',WORKSPACE/'output/am625/host'))
 IMAGES=Path(os.environ.get('FW_TEST_IMAGES',WORKSPACE/'output/am625/images'))
 
 class StorageIdentity(unittest.TestCase):
@@ -23,9 +23,14 @@ class StorageIdentity(unittest.TestCase):
         source=cls.root/'identity.c'
         source.write_text(r'''
 #include "dm/firmware.h"
+#include "dm/hwid.h"
 #include "dm_fw_update_priv.h"
 #include <stdio.h>
 #include <errno.h>
+#include <string.h>
+/* Model board identity only; read/verify the real FIT and storage contents. */
+int dm_hwid_read(const char *config, struct dm_hwid_status *result)
+{ (void)config; strcpy(result->text, "1010001000110000"); return 0; }
 int fw_update_release(const struct fw_layout *l, struct fw_storage *s,
     const char *p, uint32_t c, dm_fw_progress_fn cb, void *d)
 { (void)l; (void)s; (void)p; (void)c; (void)cb; (void)d; return -ENOSYS; }
@@ -41,15 +46,17 @@ int main(int argc, char **argv) {
 }
 ''')
         cls.binary=cls.root/'identity'
-        src=EDK/'firmware/src'
-        files=['dm_fw.c','dm_fw_identity.c','dm_fw_recovery.c','dm_fw_fit.c','dm_fw_layout.c','dm_fw_metadata.c','dm_fw_storage.c','dm_fw_storage_block.c','dm_fw_storage_mtd.c']
-        command=['cc','-std=c11','-D_POSIX_C_SOURCE=200809L','-Wall','-Wextra','-Werror','-I'+str(src),'-I'+str(EDK/'firmware/include'),'-I'+str(EDK/'firmware/src'),'-I'+str(EDK/'fwctl/adapter'),'-I'+str(HOST/'include'),'-I'+str(HOST/'include/libfdt'),str(source)]
-        command += [str(src/f) for f in files]
+        module=SOURCE/'fwctl'
+        files=['core/'+name for name in ('dm_fw.c','dm_fw_identity.c','dm_fw_recovery.c','dm_fw_fit.c','dm_fw_layout.c','dm_fw_metadata.c')]
+        files += ['storage/'+name for name in ('dm_fw_storage.c','dm_fw_storage_block.c','dm_fw_storage_mtd.c')]
+        command=['cc','-std=c11','-D_POSIX_C_SOURCE=200809L','-Wall','-Wextra','-Werror']
+        command += ['-I'+str(module/path) for path in ('include','core','storage')]
+        command += ['-I'+str(SOURCE/'identity/include'),'-I'+str(HOST/'include'),'-I'+str(HOST/'include/libfdt'),str(source)]
+        command += [str(module/f) for f in files]
         command += ['-L'+str(HOST/'lib'),'-Wl,-rpath,'+str(HOST/'lib'),'-lcrypto','-lfdt','-pthread','-o',str(cls.binary)]
         cls.runner=[]
         if os.environ.get('FW_ID_TEST_TARGET'):
-            target=WORKSPACE/'output/am625/target'
-            sysroot=WORKSPACE/'output/am625/staging'
+            target=Path(os.environ.get('TARGET_DIR',WORKSPACE/'output/am625/target'))
             command[0]=str(HOST/'bin/aarch64-buildroot-linux-gnu-gcc')
             command=[x for x in command if x not in ('-I'+str(HOST/'include'), '-I'+str(HOST/'include/libfdt'), '-L'+str(HOST/'lib'), '-Wl,-rpath,'+str(HOST/'lib'))]
             cls.runner=[str(WORKSPACE/'output/initramfs-qemu/tools/usr/bin/qemu-aarch64'),'-L',str(target)]

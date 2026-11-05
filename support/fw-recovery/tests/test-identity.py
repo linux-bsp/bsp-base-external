@@ -10,7 +10,7 @@ import tempfile
 WORKSPACE = Path(__file__).resolve().parents[4]
 HOST = Path(os.environ.get('HOST_DIR', WORKSPACE/'output/am625/host'))
 IMAGES = Path(os.environ.get('FW_TEST_IMAGES', WORKSPACE/'output/am625/images'))
-EDK = WORKSPACE/'device-manager/firmware'
+MODULE = WORKSPACE/'device-manager/fwctl'
 FDT = WORKSPACE/'uboot/u-boot-2026.04/scripts/dtc/libfdt'
 SANDBOX = WORKSPACE/'output/uboot-ota-sandbox/u-boot'
 ENV = dict(os.environ, PATH=str(HOST/'bin')+':'+os.environ['PATH'])
@@ -76,8 +76,8 @@ int main(int argc, char **argv)
 ''')
     binary = root/'identity'
     run(['cc', '-std=c11', '-D_POSIX_C_SOURCE=200809L', '-Wall', '-Wextra', '-Werror',
-         '-I'+str(EDK/'src'), '-I'+str(EDK/'include'), '-I'+str(WORKSPACE/'device-manager/identity/include'), '-I'+str(FDT), '-I'+str(HOST/'include'),
-         source, EDK/'src/dm_fw_fit.c', EDK/'src/dm_fw_metadata.c',
+         '-I'+str(MODULE/'core'), '-I'+str(MODULE/'storage'), '-I'+str(MODULE/'include'), '-I'+str(WORKSPACE/'device-manager/identity/include'), '-I'+str(FDT), '-I'+str(HOST/'include'),
+         source, MODULE/'core/dm_fw_fit.c', MODULE/'core/dm_fw_metadata.c',
          FDT/'fdt.c', FDT/'fdt_ro.c', '-L'+str(HOST/'lib'), '-Wl,-rpath,'+str(HOST/'lib'),
          '-lcrypto', '-o', binary])
     for i in range(2):
