@@ -70,7 +70,7 @@ worker_running()
 
 record_mark_good_failure()
 {
-	failure_file=${FWCTL_BOOT_FAILURES:-/run/rcS.failed}
+	failure_file=${FWCTL_BOOT_FAILURES:-/run/rcS.critical}
 	failure="S99fw-mark-good:1"
 	grep -qx "$failure" "$failure_file" 2>/dev/null ||
 		printf '%s\n' "$failure" >> "$failure_file"

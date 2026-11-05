@@ -1,0 +1,5 @@
+# Auxiliary failures remain visible in /run/rcS.failed and the console.
+# They do not reject otherwise healthy local firmware or stop watchdog feeding.
+# All unlisted services remain critical; keep platform CAN/PDM/psatellited and
+# system_manager critical. This policy does not suppress runtime diagnostics.
+BOOT_AUXILIARY_SERVICES="S01logctld S50dropbear S50lighttpd S50ptelemetryd S98fwctld"

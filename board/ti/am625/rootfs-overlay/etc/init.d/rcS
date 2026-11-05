@@ -8,12 +8,16 @@ fi
 
 
 BOOT_FAILURES=/run/rcS.failed
+BOOT_CRITICAL=/run/rcS.critical
+# Unknown services are critical by default. Only this board policy can opt out.
+BOOT_AUXILIARY_SERVICES=
+[ ! -r /etc/default/boot-health ] || . /etc/default/boot-health
 BOOT_COMPLETE=/run/rcS.complete
 
 echo "=== Starting rcS ==="
 
 mkdir -p /run
-rm -f "$BOOT_FAILURES" "$BOOT_COMPLETE"
+rm -f "$BOOT_FAILURES" "$BOOT_CRITICAL" "$BOOT_COMPLETE"
 
 for script in /etc/init.d/S??*; do
 	[ -f "$script" ] || continue
@@ -33,6 +37,10 @@ for script in /etc/init.d/S??*; do
 		name=${script##*/}
 		echo "rcS: $name failed with status $status" >&2
 		printf '%s:%s\n' "$name" "$status" >> "$BOOT_FAILURES"
+        case " $BOOT_AUXILIARY_SERVICES " in
+            *" $name "*) echo "[rcS] [WARN] auxiliary service unavailable: $name; local critical services continue" >&2 ;;
+            *) printf '%s:%s\n' "$name" "$status" >> "$BOOT_CRITICAL" ;;
+        esac
 	fi
 done
 
