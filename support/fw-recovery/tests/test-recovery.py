@@ -13,7 +13,7 @@ import unittest
 
 EXTERNAL=Path(__file__).resolve().parents[3]
 WORKSPACE=EXTERNAL.parent
-SOURCE=WORKSPACE/"edk/device-manager"
+SOURCE=WORKSPACE/"edk"
 HOST=Path(os.environ.get('HOST_DIR',WORKSPACE/'output/am625/host'))
 TARGET=Path(os.environ.get('TARGET_DIR',WORKSPACE/'output/am625/target'))
 BUILDER=EXTERNAL/'support/scripts/build-initramfs.py'
@@ -57,9 +57,9 @@ int main(int argc, char **argv) {
 ''')
         cls.native=root/'fwctl-recovery-test'
         subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror',
-            '-I'+str(HOST/'include'),'-I'+str(SOURCE.parent/'user/transfer/include'),str(wrapper),str(SOURCE.parent/'user/fwctl/recovery/fw-init.c'),
+            '-I'+str(HOST/'include'),'-I'+str(SOURCE/'user/transfer/include'),str(wrapper),str(SOURCE/'user/fwctl/recovery/fw-init.c'),
             '-L'+str(HOST/'lib'),'-Wl,-rpath,'+str(HOST/'lib'),
-            str(SOURCE.parent/'user/transfer/build/libdm-transfer.a'),'-lcurl','-lcrypto','-pthread','-o',str(cls.native)],check=True)
+            os.environ.get('TRANSFER_CLIENT_ARCHIVE', str(WORKSPACE/'edk/.build/management-tests/lib/libedk_transfer_client.a')),'-lcurl','-lcrypto','-pthread','-o',str(cls.native)],check=True)
 
     @classmethod
     def tearDownClass(cls):
@@ -111,10 +111,10 @@ int main(int argc, char **argv) {
     def test_delayed_root_device_discovery(self):
         binary = self.dir/'storage-ready-test'
         subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror',
-            '-I'+str(HOST/'include'), '-I'+str(SOURCE.parent/'user/transfer/include'), str(SOURCE.parent/'user/fwctl/tests/recovery/storage-ready-test.c'),
+            '-I'+str(HOST/'include'), '-I'+str(SOURCE/'user/transfer/include'), str(SOURCE/'user/fwctl/tests/recovery/storage-ready-test.c'),
             '-L'+str(HOST/'lib'), '-Wl,-rpath,'+str(HOST/'lib'),
             '-Wl,--wrap=access', '-Wl,--wrap=fork', '-Wl,--wrap=execv',
-            str(SOURCE.parent/'user/transfer/build/libdm-transfer.a'), '-lcurl', '-lcrypto', '-pthread', '-o', str(binary)], check=True)
+            os.environ.get('TRANSFER_CLIENT_ARCHIVE', str(WORKSPACE/'edk/.build/management-tests/lib/libedk_transfer_client.a')), '-lcurl', '-lcrypto', '-pthread', '-o', str(binary)], check=True)
         result = subprocess.run([str(binary)], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stderr, '')

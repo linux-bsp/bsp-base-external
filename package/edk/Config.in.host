@@ -1,17 +1,17 @@
-config BR2_PACKAGE_HOST_DEVICE_MANAGER
+config BR2_PACKAGE_HOST_EDK
     bool "host Device Manager tools"
     help
       Select tools built for the development host from the same source.
 
-if BR2_PACKAGE_HOST_DEVICE_MANAGER
+if BR2_PACKAGE_HOST_EDK
 
-config BR2_PACKAGE_HOST_DEVICE_MANAGER_SERVER
+config BR2_PACKAGE_HOST_EDK_SERVER
     bool "device-server"
     default y
     help
       Install the Device Manager Web and OTA server to host/bin.
 
-config BR2_PACKAGE_HOST_DEVICE_MANAGER_OTA_CLI
+config BR2_PACKAGE_HOST_EDK_OTA_CLI
     bool "ota-cli"
     default y
     help

@@ -11,7 +11,7 @@ import unittest
 import zlib
 
 WORKSPACE=Path(__file__).resolve().parents[4]
-SOURCE=WORKSPACE/'edk/device-manager'
+SOURCE=WORKSPACE/'edk'
 HOST=Path(os.environ.get('HOST_DIR',WORKSPACE/'output/am625/host'))
 IMAGES=Path(os.environ.get('FW_TEST_IMAGES',WORKSPACE/'output/am625/images'))
 
@@ -46,12 +46,12 @@ int main(int argc, char **argv) {
 }
 ''')
         cls.binary=cls.root/'identity'
-        module=SOURCE.parent/'user/fwctl'
+        module=SOURCE/'user/fwctl'
         files=['core/'+name for name in ('dm_fw.c','dm_fw_identity.c','dm_fw_recovery.c','dm_fw_fit.c','dm_fw_layout.c','dm_fw_metadata.c')]
         files += ['storage/'+name for name in ('dm_fw_storage.c','dm_fw_storage_block.c','dm_fw_storage_mtd.c')]
         command=['cc','-std=c11','-D_POSIX_C_SOURCE=200809L','-Wall','-Wextra','-Werror']
         command += ['-I'+str(module/path) for path in ('include','core','storage')]
-        command += ['-I'+str(SOURCE.parent/'user/hwid/include'),'-I'+str(HOST/'include'),'-I'+str(HOST/'include/libfdt'),str(source)]
+        command += ['-I'+str(SOURCE/'user/hwid/include'),'-I'+str(HOST/'include'),'-I'+str(HOST/'include/libfdt'),str(source)]
         command += [str(module/f) for f in files]
         command += ['-L'+str(HOST/'lib'),'-Wl,-rpath,'+str(HOST/'lib'),'-lcrypto','-lfdt','-pthread','-o',str(cls.binary)]
         cls.runner=[]
