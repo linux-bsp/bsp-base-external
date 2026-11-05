@@ -14,6 +14,10 @@ ifeq ($(BR2_PACKAGE_DEVICE_MANAGER_LOGCTL),y)
 DEVICE_MANAGER_DEPENDENCIES += busybox libcurl openssl zlib
 DEVICE_MANAGER_TARGETS += logctl logctld
 endif
+ifeq ($(BR2_PACKAGE_DEVICE_MANAGER_TIMECTL),y)
+DEVICE_MANAGER_DEPENDENCIES += libcurl openssl
+DEVICE_MANAGER_TARGETS += timectl timectld
+endif
 
 ifneq ($(strip $(DEVICE_MANAGER_TARGETS)),)
 define DEVICE_MANAGER_BUILD_CMDS
@@ -34,11 +38,15 @@ define DEVICE_MANAGER_INSTALL_TARGET_CMDS
 	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_LOGCTL)),$(INSTALL) -d $(TARGET_DIR)/data)
 	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_LOGCTL)),$(INSTALL) -D -m 0755 $(@D)/logging/logctl $(TARGET_DIR)/usr/sbin/logctl)
 	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_LOGCTL)),$(INSTALL) -D -m 0755 $(@D)/logging/logctld $(TARGET_DIR)/usr/sbin/logctld)
+	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_TIMECTL)),$(INSTALL) -D -m 0755 $(@D)/time/timectl $(TARGET_DIR)/usr/sbin/timectl)
+	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_TIMECTL)),ln -sf timectl $(TARGET_DIR)/usr/sbin/timectld)
+	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_TIMECTL)),$(INSTALL) -D -m 0755 $(@D)/integration/systemd/timectld-start $(TARGET_DIR)/usr/libexec/device-manager/timectld-start)
 endef
 
 define DEVICE_MANAGER_INSTALL_INIT_SYSV
 	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_FWCTLD)),$(INSTALL) -D -m 0755 $(DEVICE_MANAGER_PKGDIR)/S98fwctld $(TARGET_DIR)/etc/init.d/S98fwctld)
 	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_LOGCTL)),$(INSTALL) -D -m 0755 $(DEVICE_MANAGER_PKGDIR)/S01logctld $(TARGET_DIR)/etc/init.d/S01logctld)
+	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_TIMECTL)),$(INSTALL) -D -m 0755 $(DEVICE_MANAGER_PKGDIR)/S02timectld $(TARGET_DIR)/etc/init.d/S02timectld)
 endef
 
 # Native systemd units run daemons in the foreground; no second supervisor.
@@ -50,6 +58,7 @@ define DEVICE_MANAGER_INSTALL_INIT_SYSTEMD
 	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_FWCTLD)),$(INSTALL) -m 0755 $(@D)/integration/systemd/fwctld-start $(TARGET_DIR)/usr/libexec/device-manager/)
 	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_LOGCTL)),$(INSTALL) -m 0644 $(@D)/integration/systemd/logctld.service $(@D)/integration/systemd/logctl-journal.service $(@D)/integration/systemd/device-shutdown-intent.service $(TARGET_DIR)/usr/lib/systemd/system/)
 	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_LOGCTL)),$(INSTALL) -m 0755 $(@D)/integration/systemd/logctld-start $(TARGET_DIR)/usr/libexec/device-manager/)
+	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_TIMECTL)),$(INSTALL) -m 0644 $(@D)/integration/systemd/timectld.service $(TARGET_DIR)/usr/lib/systemd/system/)
 	$(INSTALL) -m 0644 $(@D)/integration/systemd/*.preset $(TARGET_DIR)/usr/lib/systemd/system-preset/
 endef
 

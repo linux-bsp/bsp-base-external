@@ -2,7 +2,7 @@ config BR2_PACKAGE_DEVICE_MANAGER
     bool "Device Manager device tools"
     depends on BR2_USE_MMU
     help
-      Select the firmware and logging tools installed on the device.
+      Select the firmware, logging and time tools installed on the device.
       The host tools are selected independently below.
 
 if BR2_PACKAGE_DEVICE_MANAGER
@@ -48,5 +48,16 @@ config BR2_PACKAGE_DEVICE_MANAGER_FWCTL_FIT_SIGNATURE
     select BR2_PACKAGE_UBOOT_TOOLS_FIT_SUPPORT
     select BR2_PACKAGE_UBOOT_TOOLS_FIT_SIGNATURE_SUPPORT
     select BR2_PACKAGE_UBOOT_TOOLS_FIT_CHECK_SIGN
+
+config BR2_PACKAGE_DEVICE_MANAGER_TIMECTL
+    bool "timectl / timectld time management"
+    depends on BR2_TOOLCHAIN_HAS_THREADS
+    select BR2_PACKAGE_LIBCURL
+    select BR2_PACKAGE_OPENSSL
+    select BR2_PACKAGE_OPENSSL_FORCE_LIBOPENSSL
+    select BR2_PACKAGE_CA_CERTIFICATES
+    help
+      Install independent NTP/HTTP time synchronization, RTC updates,
+      local status/control and Device Manager time-source reporting.
 
 endif

@@ -1,0 +1,23 @@
+#!/bin/sh
+PIDFILE=/run/timectld.pid
+case "$1" in
+    start)
+        start-stop-daemon -S -b -m -O /dev/console -p "$PIDFILE" \
+            -x /usr/libexec/device-manager/timectld-start
+        ;;
+    stop)
+        if ! start-stop-daemon -K -t -p "$PIDFILE" -x /usr/sbin/timectld >/dev/null 2>&1; then
+            rm -f "$PIDFILE"
+            exit 0
+        fi
+        start-stop-daemon -K -p "$PIDFILE" -x /usr/sbin/timectld || exit 1
+        attempts=0
+        while start-stop-daemon -K -t -p "$PIDFILE" -x /usr/sbin/timectld >/dev/null 2>&1; do
+            attempts=$((attempts + 1))
+            [ "$attempts" -lt 12 ] || exit 1
+            sleep 1
+        done
+        rm -f "$PIDFILE"
+        ;;
+    *) echo "Usage: $0 {start|stop}" >&2; exit 2 ;;
+esac
