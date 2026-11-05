@@ -5,6 +5,8 @@ Conflicts=serial-getty@ttyS2.service
 
 [Service]
 Type=idle
+# Plain UART/SOL capture: no OSC context, cursor probes or terminal colour codes.
+Environment=TERM=dumb SYSTEMD_COLORS=0 SYSTEMD_URLIFY=0
 ExecStart=/bin/sh -l
 Restart=always
 RestartSec=1
@@ -12,6 +14,8 @@ StandardInput=tty-force
 StandardOutput=tty
 StandardError=tty
 TTYPath=/dev/ttyS2
+TTYRows=24
+TTYColumns=120
 TTYReset=yes
 TTYVHangup=yes
 KillMode=control-group
