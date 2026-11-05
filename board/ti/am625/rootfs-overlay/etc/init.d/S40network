@@ -34,6 +34,7 @@ case "$1" in
 	start)
 		printf "Starting network: "
 		status=0
+		start_interface lo || status=1
 		start_interface eth0 || status=1
 		start_interface eth1 || status=1
 		if [ "$status" -eq 0 ]; then
@@ -48,6 +49,7 @@ case "$1" in
 		status=0
 		stop_interface eth0 || status=1
 		stop_interface eth1 || status=1
+		stop_interface lo || status=1
 		if [ "$status" -eq 0 ]; then
 			echo "OK"
 		else

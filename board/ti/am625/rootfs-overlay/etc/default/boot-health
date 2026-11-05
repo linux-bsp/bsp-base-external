@@ -1,5 +1,5 @@
-# Auxiliary failures remain visible in /run/rcS.failed and the console.
-# They do not reject otherwise healthy local firmware or stop watchdog feeding.
-# All unlisted services remain critical; keep platform CAN/PDM/psatellited and
-# system_manager critical. This policy does not suppress runtime diagnostics.
-BOOT_AUXILIARY_SERVICES="S01logctld S50dropbear S50lighttpd S50ptelemetryd S98fwctld"
+# Ethernet product profile. External carrier/peer availability is not a
+# watchdog condition. system_manager itself is always required by fwctl.
+# Peripheral demo services remain supervised but can degrade independently.
+HEALTH_CRITICAL_SERVICES=""
+BOOT_AUXILIARY_SERVICES="S01logctld S09can S10pdm S11modules S50dropbear S50lighttpd S50ptelemetryd S51psatellited S98fwctld"
