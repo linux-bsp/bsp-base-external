@@ -4,8 +4,8 @@ DEVICE_MANAGER_SITE_METHOD = local
 # Never import native binaries or objects into a target/host package build.
 DEVICE_MANAGER_OVERRIDE_SRCDIR_RSYNC_EXCLUSIONS = \
 	--exclude='/.build' --exclude='/device-manager/bin' --exclude='/device-manager/build' --exclude='/user/transfer/build' --exclude='/user/fwctl/build' \
-	--exclude='/device-manager/ota/device-server' --exclude='/device-manager/ota/fwctld' --exclude='/device-manager/ota/ota-cli' \
-	--exclude='/device-manager/ota/ota-page.h' --exclude='/user/logctl/logctl' --exclude='/user/logctl/logctld' \
+	--exclude='/host/device-manager/device-server' --exclude='/host/device-manager/fwctld' --exclude='/host/device-manager/ota-cli' \
+	--exclude='/host/device-manager/ota-page.h' --exclude='/user/logctl/logctl' --exclude='/user/logctl/logctld' \
 	--exclude='/user/timectl/timectl' --exclude='/user/timectl/timectld' --exclude='__pycache__'
 
 ifeq ($(BR2_PACKAGE_DEVICE_MANAGER_FWCTL),y)
@@ -63,7 +63,7 @@ define DEVICE_MANAGER_INSTALL_TARGET_CMDS
 	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_LOGCTL)),ln -sf logctl $(TARGET_DIR)/usr/sbin/logctld)
 	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_TIMECTL)),$(INSTALL) -D -m 0755 $(@D)/.build/management/bin/timectl $(TARGET_DIR)/usr/sbin/timectl)
 	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_TIMECTL)),ln -sf timectl $(TARGET_DIR)/usr/sbin/timectld)
-	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_TIMECTL)),$(INSTALL) -D -m 0755 $(@D)/device-manager/integration/systemd/timectld-start $(TARGET_DIR)/usr/libexec/device-manager/timectld-start)
+	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_TIMECTL)),$(INSTALL) -D -m 0755 $(@D)/integration/systemd/timectld-start $(TARGET_DIR)/usr/libexec/device-manager/timectld-start)
 endef
 
 define DEVICE_MANAGER_INSTALL_INIT_SYSV
@@ -75,14 +75,14 @@ endef
 # Native systemd units run daemons in the foreground; no second supervisor.
 define DEVICE_MANAGER_INSTALL_INIT_SYSTEMD
 	$(INSTALL) -d $(TARGET_DIR)/usr/lib/systemd/system $(TARGET_DIR)/usr/libexec/device-manager $(TARGET_DIR)/usr/lib/systemd/system-preset
-	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_FWCTL)),$(INSTALL) -m 0644 $(@D)/device-manager/integration/systemd/fw-health.service $(@D)/device-manager/integration/systemd/fw-confirm.service $(@D)/device-manager/integration/systemd/fw-health-failure.service $(TARGET_DIR)/usr/lib/systemd/system/)
-	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_FWCTL)),$(INSTALL) -m 0755 $(@D)/device-manager/integration/systemd/fw-confirm $(@D)/device-manager/integration/systemd/fw-health-monitor $(@D)/device-manager/integration/systemd/fw-health-failure $(TARGET_DIR)/usr/libexec/device-manager/)
-	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_FWCTLD)),$(INSTALL) -m 0644 $(@D)/device-manager/integration/systemd/fwctld.service $(TARGET_DIR)/usr/lib/systemd/system/)
-	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_FWCTLD)),$(INSTALL) -m 0755 $(@D)/device-manager/integration/systemd/fwctld-start $(TARGET_DIR)/usr/libexec/device-manager/)
-	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_LOGCTL)),$(INSTALL) -m 0644 $(@D)/device-manager/integration/systemd/logctld.service $(@D)/device-manager/integration/systemd/logctl-journal.service $(@D)/device-manager/integration/systemd/device-shutdown-intent.service $(TARGET_DIR)/usr/lib/systemd/system/)
-	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_LOGCTL)),$(INSTALL) -m 0755 $(@D)/device-manager/integration/systemd/logctld-start $(TARGET_DIR)/usr/libexec/device-manager/)
-	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_TIMECTL)),$(INSTALL) -m 0644 $(@D)/device-manager/integration/systemd/timectld.service $(TARGET_DIR)/usr/lib/systemd/system/)
-	$(INSTALL) -m 0644 $(@D)/device-manager/integration/systemd/*.preset $(TARGET_DIR)/usr/lib/systemd/system-preset/
+	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_FWCTL)),$(INSTALL) -m 0644 $(@D)/integration/systemd/fw-health.service $(@D)/integration/systemd/fw-confirm.service $(@D)/integration/systemd/fw-health-failure.service $(TARGET_DIR)/usr/lib/systemd/system/)
+	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_FWCTL)),$(INSTALL) -m 0755 $(@D)/integration/systemd/fw-confirm $(@D)/integration/systemd/fw-health-monitor $(@D)/integration/systemd/fw-health-failure $(TARGET_DIR)/usr/libexec/device-manager/)
+	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_FWCTLD)),$(INSTALL) -m 0644 $(@D)/integration/systemd/fwctld.service $(TARGET_DIR)/usr/lib/systemd/system/)
+	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_FWCTLD)),$(INSTALL) -m 0755 $(@D)/integration/systemd/fwctld-start $(TARGET_DIR)/usr/libexec/device-manager/)
+	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_LOGCTL)),$(INSTALL) -m 0644 $(@D)/integration/systemd/logctld.service $(@D)/integration/systemd/logctl-journal.service $(@D)/integration/systemd/device-shutdown-intent.service $(TARGET_DIR)/usr/lib/systemd/system/)
+	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_LOGCTL)),$(INSTALL) -m 0755 $(@D)/integration/systemd/logctld-start $(TARGET_DIR)/usr/libexec/device-manager/)
+	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_TIMECTL)),$(INSTALL) -m 0644 $(@D)/integration/systemd/timectld.service $(TARGET_DIR)/usr/lib/systemd/system/)
+	$(INSTALL) -m 0644 $(@D)/integration/systemd/*.preset $(TARGET_DIR)/usr/lib/systemd/system-preset/
 endef
 
 HOST_DEVICE_MANAGER_VERSION = 1
@@ -90,19 +90,26 @@ HOST_DEVICE_MANAGER_SITE = $(DEVICE_MANAGER_SITE)
 HOST_DEVICE_MANAGER_SITE_METHOD = local
 HOST_DEVICE_MANAGER_OVERRIDE_SRCDIR_RSYNC_EXCLUSIONS = $(DEVICE_MANAGER_OVERRIDE_SRCDIR_RSYNC_EXCLUSIONS)
 ifeq ($(BR2_PACKAGE_HOST_DEVICE_MANAGER_SERVER),y)
-HOST_DEVICE_MANAGER_DEPENDENCIES += host-sqlite host-zlib host-uboot-tools host-openssl
+HOST_DEVICE_MANAGER_DEPENDENCIES += host-cmake host-python3 host-flex host-bison host-sqlite host-zlib host-uboot-tools host-openssl
 HOST_DEVICE_MANAGER_TARGETS += device-server
 endif
 ifeq ($(BR2_PACKAGE_HOST_DEVICE_MANAGER_OTA_CLI),y)
-HOST_DEVICE_MANAGER_DEPENDENCIES += host-libcurl host-openssl
+HOST_DEVICE_MANAGER_DEPENDENCIES += host-cmake host-python3 host-flex host-bison host-libcurl host-openssl
 HOST_DEVICE_MANAGER_TARGETS += ota-cli
 endif
 
 ifneq ($(strip $(HOST_DEVICE_MANAGER_TARGETS)),)
 define HOST_DEVICE_MANAGER_BUILD_CMDS
-	$(HOST_MAKE_ENV) $(MAKE) -B -C $(@D)/device-manager CC="$(HOSTCC)" \
-		CPPFLAGS="$(HOST_CPPFLAGS)" CFLAGS="$(HOST_CFLAGS)" \
-		LDFLAGS="$(HOST_LDFLAGS)" $(HOST_DEVICE_MANAGER_TARGETS)
+	mkdir -p $(@D)/.build
+	printf 'CONFIG_ARCH="x86_64"\nCONFIG_DEVICE_SERVER=%s\nCONFIG_OTA_CLI=%s\n' \
+		"$(if $(filter y,$(BR2_PACKAGE_HOST_DEVICE_MANAGER_SERVER)),y,n)" \
+		"$(if $(filter y,$(BR2_PACKAGE_HOST_DEVICE_MANAGER_OTA_CLI)),y,n)" > $(@D)/.build/host.config
+	$(HOST_MAKE_ENV) $(HOST_DIR)/bin/cmake -S $(@D) -B $(@D)/.build/host \
+		-DCONFIG_FILE=$(@D)/.build/host.config -DCMAKE_C_COMPILER="$(HOSTCC)" \
+		-DCMAKE_PREFIX_PATH="$(HOST_DIR)" -DCMAKE_BUILD_TYPE=Release \
+		-DCMAKE_C_FLAGS="$(filter-out -O% -g%,$(HOST_CFLAGS))" \
+		-DCMAKE_EXE_LINKER_FLAGS="$(HOST_LDFLAGS)"
+	$(HOST_MAKE_ENV) $(HOST_DIR)/bin/cmake --build $(@D)/.build/host --parallel $(PARALLEL_JOBS)
 endef
 else
 define HOST_DEVICE_MANAGER_BUILD_CMDS
@@ -111,8 +118,8 @@ endef
 endif
 
 define HOST_DEVICE_MANAGER_INSTALL_CMDS
-	$(if $(filter y,$(BR2_PACKAGE_HOST_DEVICE_MANAGER_SERVER)),$(INSTALL) -D -m 0755 $(@D)/device-manager/ota/device-server $(HOST_DIR)/bin/device-server)
-	$(if $(filter y,$(BR2_PACKAGE_HOST_DEVICE_MANAGER_OTA_CLI)),$(INSTALL) -D -m 0755 $(@D)/device-manager/ota/ota-cli $(HOST_DIR)/bin/ota-cli)
+	$(if $(filter y,$(BR2_PACKAGE_HOST_DEVICE_MANAGER_SERVER)),$(INSTALL) -D -m 0755 $(@D)/.build/host/bin/device-server $(HOST_DIR)/bin/device-server)
+	$(if $(filter y,$(BR2_PACKAGE_HOST_DEVICE_MANAGER_OTA_CLI)),$(INSTALL) -D -m 0755 $(@D)/.build/host/bin/ota-cli $(HOST_DIR)/bin/ota-cli)
 endef
 
 $(eval $(generic-package))
