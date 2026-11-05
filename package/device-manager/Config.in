@@ -36,6 +36,7 @@ config BR2_PACKAGE_DEVICE_MANAGER_LOGCTL
     select BR2_PACKAGE_OPENSSL
     select BR2_PACKAGE_OPENSSL_FORCE_LIBOPENSSL
     select BR2_PACKAGE_CA_CERTIFICATES
+    select BR2_PACKAGE_ZLIB
     help
       Install bounded per-boot logging and optional HTTP(S) forwarding.
       Existing storage is mounted but never formatted during boot.

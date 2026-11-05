@@ -11,7 +11,7 @@ DEVICE_MANAGER_DEPENDENCIES += libcurl openssl busybox
 DEVICE_MANAGER_TARGETS += fwctld
 endif
 ifeq ($(BR2_PACKAGE_DEVICE_MANAGER_LOGCTL),y)
-DEVICE_MANAGER_DEPENDENCIES += busybox libcurl openssl
+DEVICE_MANAGER_DEPENDENCIES += busybox libcurl openssl zlib
 DEVICE_MANAGER_TARGETS += logctl logctld
 endif
 
