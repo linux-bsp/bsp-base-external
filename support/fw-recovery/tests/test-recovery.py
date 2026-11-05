@@ -13,7 +13,7 @@ import unittest
 
 EXTERNAL=Path(__file__).resolve().parents[3]
 WORKSPACE=EXTERNAL.parent
-SOURCE=WORKSPACE/"device-manager"
+SOURCE=WORKSPACE/"edk/device-manager"
 HOST=Path(os.environ.get('HOST_DIR',WORKSPACE/'output/am625/host'))
 TARGET=Path(os.environ.get('TARGET_DIR',WORKSPACE/'output/am625/target'))
 BUILDER=EXTERNAL/'support/scripts/build-initramfs.py'

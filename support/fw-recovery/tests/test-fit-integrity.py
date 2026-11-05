@@ -11,7 +11,7 @@ import unittest
 WORKSPACE=Path(__file__).resolve().parents[4]
 HOST=Path(os.environ.get('HOST_DIR',WORKSPACE/'output/am625/host'))
 IMAGES=Path(os.environ.get('FW_TEST_IMAGES', WORKSPACE/'output/am625/images'))
-SOURCE=WORKSPACE/'device-manager'
+SOURCE=WORKSPACE/'edk/device-manager'
 FDT=WORKSPACE/'uboot/u-boot-2026.04/scripts/dtc/libfdt'
 
 class FITIntegrity(unittest.TestCase):

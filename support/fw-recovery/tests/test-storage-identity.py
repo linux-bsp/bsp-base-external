@@ -11,7 +11,7 @@ import unittest
 import zlib
 
 WORKSPACE=Path(__file__).resolve().parents[4]
-SOURCE=WORKSPACE/'device-manager'
+SOURCE=WORKSPACE/'edk/device-manager'
 HOST=Path(os.environ.get('HOST_DIR',WORKSPACE/'output/am625/host'))
 IMAGES=Path(os.environ.get('FW_TEST_IMAGES',WORKSPACE/'output/am625/images'))
 

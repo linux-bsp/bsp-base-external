@@ -27,6 +27,7 @@ endif
 # Kbuild products from the EDK workspace into Buildroot. Linux refuses external
 # modules when modules.order exists in the module source tree.
 EDK_OVERRIDE_SRCDIR_RSYNC_EXCLUSIONS = \
+	--exclude='/device-manager' \
 	--exclude='.build' \
 	--exclude='_build' \
 	--exclude='*.o' \

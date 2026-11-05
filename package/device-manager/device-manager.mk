@@ -1,6 +1,12 @@
 DEVICE_MANAGER_VERSION = 1
-DEVICE_MANAGER_SITE = $(BR2_EXTERNAL_LINUX_BSP_PATH)/../device-manager
+DEVICE_MANAGER_SITE = $(BR2_EXTERNAL_LINUX_BSP_PATH)/../edk/device-manager
 DEVICE_MANAGER_SITE_METHOD = local
+# Never import native binaries or objects into a target/host package build.
+DEVICE_MANAGER_OVERRIDE_SRCDIR_RSYNC_EXCLUSIONS = \
+	--exclude='/bin' --exclude='/build' --exclude='/transfer/build' --exclude='/fwctl/build' \
+	--exclude='/ota/device-server' --exclude='/ota/fwctld' --exclude='/ota/ota-cli' \
+	--exclude='/ota/ota-page.h' --exclude='/logging/logctl' --exclude='/logging/logctld' \
+	--exclude='/time/timectl' --exclude='/time/timectld' --exclude='__pycache__'
 
 ifeq ($(BR2_PACKAGE_DEVICE_MANAGER_FWCTL),y)
 DEVICE_MANAGER_DEPENDENCIES += dtc libcurl openssl libubootenv
@@ -65,6 +71,7 @@ endef
 HOST_DEVICE_MANAGER_VERSION = 1
 HOST_DEVICE_MANAGER_SITE = $(DEVICE_MANAGER_SITE)
 HOST_DEVICE_MANAGER_SITE_METHOD = local
+HOST_DEVICE_MANAGER_OVERRIDE_SRCDIR_RSYNC_EXCLUSIONS = $(DEVICE_MANAGER_OVERRIDE_SRCDIR_RSYNC_EXCLUSIONS)
 ifeq ($(BR2_PACKAGE_HOST_DEVICE_MANAGER_SERVER),y)
 HOST_DEVICE_MANAGER_DEPENDENCIES += host-sqlite host-zlib host-uboot-tools host-openssl
 HOST_DEVICE_MANAGER_TARGETS += device-server

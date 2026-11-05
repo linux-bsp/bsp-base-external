@@ -47,13 +47,13 @@ a separately configured SDK with suitable headers. This is not an i.MX6ULL SDK.
 
 ## OTA publication, automatic updates and recovery
 
-The C `device-server` in the sibling `device-manager/` repository provides a web interface to upload,
+The C `device-server` in the integrated `edk/device-manager/` module provides a web interface to upload,
 review, and publish firmware releases. The standalone C `ota-cli` provides
 HTTP upload, publication, and status queries from an SSH terminal. Devices poll, download, and verify the
 published release, install it with `fwctl`, reboot, and report the result after
 boot health confirmation when automatic installation is enabled. U-Boot can
 request the exact kernel version from the same server to repair a damaged slot.
-See [the Device Manager guide](../device-manager/README.md) for build, publication, device
+See [the Device Manager guide](../edk/device-manager/README.md) for build, publication, device
 configuration, and test commands. The AM62x configuration includes `fwctld`;
 its boot service is disabled until explicitly configured.
 
