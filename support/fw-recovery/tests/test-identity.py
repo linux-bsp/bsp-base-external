@@ -10,7 +10,7 @@ import tempfile
 WORKSPACE = Path(__file__).resolve().parents[4]
 HOST = Path(os.environ.get('HOST_DIR', WORKSPACE/'output/am625/host'))
 IMAGES = Path(os.environ.get('FW_TEST_IMAGES', WORKSPACE/'output/am625/images'))
-MODULE = WORKSPACE/'edk/device-manager/fwctl'
+MODULE = WORKSPACE/'edk/user/fwctl'
 FDT = WORKSPACE/'uboot/u-boot-2026.04/scripts/dtc/libfdt'
 SANDBOX = WORKSPACE/'output/uboot-ota-sandbox/u-boot'
 ENV = dict(os.environ, PATH=str(HOST/'bin')+':'+os.environ['PATH'])

@@ -57,7 +57,7 @@ int main(int argc, char **argv) {
 ''')
         cls.native=root/'fwctl-recovery-test'
         subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror',
-            '-I'+str(HOST/'include'),'-I'+str(SOURCE.parent/'user/transfer/include'),str(wrapper),str(SOURCE/'fwctl/recovery/fw-init.c'),
+            '-I'+str(HOST/'include'),'-I'+str(SOURCE.parent/'user/transfer/include'),str(wrapper),str(SOURCE.parent/'user/fwctl/recovery/fw-init.c'),
             '-L'+str(HOST/'lib'),'-Wl,-rpath,'+str(HOST/'lib'),
             str(SOURCE.parent/'user/transfer/build/libdm-transfer.a'),'-lcurl','-lcrypto','-pthread','-o',str(cls.native)],check=True)
 
@@ -111,7 +111,7 @@ int main(int argc, char **argv) {
     def test_delayed_root_device_discovery(self):
         binary = self.dir/'storage-ready-test'
         subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror',
-            '-I'+str(HOST/'include'), '-I'+str(SOURCE.parent/'user/transfer/include'), str(SOURCE/'fwctl/tests/recovery/storage-ready-test.c'),
+            '-I'+str(HOST/'include'), '-I'+str(SOURCE.parent/'user/transfer/include'), str(SOURCE.parent/'user/fwctl/tests/recovery/storage-ready-test.c'),
             '-L'+str(HOST/'lib'), '-Wl,-rpath,'+str(HOST/'lib'),
             '-Wl,--wrap=access', '-Wl,--wrap=fork', '-Wl,--wrap=execv',
             str(SOURCE.parent/'user/transfer/build/libdm-transfer.a'), '-lcurl', '-lcrypto', '-pthread', '-o', str(binary)], check=True)

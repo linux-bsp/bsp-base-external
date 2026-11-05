@@ -3,18 +3,16 @@ DEVICE_MANAGER_SITE = $(BR2_EXTERNAL_LINUX_BSP_PATH)/../edk
 DEVICE_MANAGER_SITE_METHOD = local
 # Never import native binaries or objects into a target/host package build.
 DEVICE_MANAGER_OVERRIDE_SRCDIR_RSYNC_EXCLUSIONS = \
-	--exclude='/.build' --exclude='/device-manager/bin' --exclude='/device-manager/build' --exclude='/user/transfer/build' --exclude='/device-manager/fwctl/build' \
+	--exclude='/.build' --exclude='/device-manager/bin' --exclude='/device-manager/build' --exclude='/user/transfer/build' --exclude='/user/fwctl/build' \
 	--exclude='/device-manager/ota/device-server' --exclude='/device-manager/ota/fwctld' --exclude='/device-manager/ota/ota-cli' \
 	--exclude='/device-manager/ota/ota-page.h' --exclude='/device-manager/logging/logctl' --exclude='/device-manager/logging/logctld' \
 	--exclude='/device-manager/time/timectl' --exclude='/device-manager/time/timectld' --exclude='__pycache__'
 
 ifeq ($(BR2_PACKAGE_DEVICE_MANAGER_FWCTL),y)
-DEVICE_MANAGER_DEPENDENCIES += dtc libcurl openssl libubootenv
-DEVICE_MANAGER_TARGETS += fwctl
+DEVICE_MANAGER_DEPENDENCIES += dtc libcurl openssl libubootenv host-cmake host-python3 host-flex host-bison
 endif
 ifeq ($(BR2_PACKAGE_DEVICE_MANAGER_FWCTLD),y)
 DEVICE_MANAGER_DEPENDENCIES += libcurl openssl busybox
-DEVICE_MANAGER_TARGETS += fwctld
 endif
 ifeq ($(BR2_PACKAGE_DEVICE_MANAGER_LOGCTL),y)
 DEVICE_MANAGER_DEPENDENCIES += busybox libcurl openssl zlib
@@ -37,9 +35,26 @@ define DEVICE_MANAGER_BUILD_CMDS
 endef
 endif
 
+# Buildroot owns component selection; one generated seed feeds EDK Kconfig.
+ifeq ($(BR2_PACKAGE_DEVICE_MANAGER_FWCTL),y)
+define DEVICE_MANAGER_BUILD_FIRMWARE
+	mkdir -p $(@D)/.build
+	printf 'CONFIG_ARCH="%s"\nCONFIG_FWCTL=y\nCONFIG_FWCTLD=%s\n' \
+		"$(KERNEL_ARCH)" "$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_FWCTLD)),y,n)" > $(@D)/.build/firmware.config
+	$(TARGET_MAKE_ENV) $(HOST_DIR)/bin/cmake -S $(@D) -B $(@D)/.build/firmware \
+		-DCONFIG_FILE=$(@D)/.build/firmware.config \
+		-DCMAKE_TOOLCHAIN_FILE=$(HOST_DIR)/share/buildroot/toolchainfile.cmake \
+		-DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_C_FLAGS="$(filter-out -O% -g%,$(TARGET_CFLAGS))" \
+		-DCMAKE_EXE_LINKER_FLAGS="$(TARGET_LDFLAGS)"
+	$(TARGET_MAKE_ENV) $(HOST_DIR)/bin/cmake --build $(@D)/.build/firmware --parallel $(PARALLEL_JOBS)
+endef
+DEVICE_MANAGER_POST_BUILD_HOOKS += DEVICE_MANAGER_BUILD_FIRMWARE
+endif
+
 define DEVICE_MANAGER_INSTALL_TARGET_CMDS
-	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_FWCTL)),$(INSTALL) -D -m 0755 $(@D)/device-manager/bin/fwctl $(TARGET_DIR)/usr/sbin/fwctl)
-	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_FWCTLD)),$(INSTALL) -D -m 0755 $(@D)/device-manager/ota/fwctld $(TARGET_DIR)/usr/sbin/fwctld)
+	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_FWCTL)),$(INSTALL) -D -m 0755 $(@D)/.build/firmware/bin/fwctl $(TARGET_DIR)/usr/sbin/fwctl)
+	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_FWCTLD)),$(INSTALL) -D -m 0755 $(@D)/.build/firmware/bin/fwctld $(TARGET_DIR)/usr/sbin/fwctld)
 	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_FWCTLD)),$(INSTALL) -D -m 0644 $(DEVICE_MANAGER_PKGDIR)/fwctld.default $(TARGET_DIR)/etc/default/fwctld)
 	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_LOGCTL)),$(INSTALL) -d $(TARGET_DIR)/data)
 	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_LOGCTL)),$(INSTALL) -D -m 0755 $(@D)/device-manager/logging/logctl $(TARGET_DIR)/usr/sbin/logctl)
