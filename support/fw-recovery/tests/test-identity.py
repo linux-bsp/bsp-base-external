@@ -76,7 +76,7 @@ int main(int argc, char **argv)
 ''')
     binary = root/'identity'
     run(['cc', '-std=c11', '-D_POSIX_C_SOURCE=200809L', '-Wall', '-Wextra', '-Werror',
-         '-I'+str(MODULE/'core'), '-I'+str(MODULE/'storage'), '-I'+str(MODULE/'include'), '-I'+str(WORKSPACE/'edk/device-manager/identity/include'), '-I'+str(FDT), '-I'+str(HOST/'include'),
+         '-I'+str(MODULE/'core'), '-I'+str(MODULE/'storage'), '-I'+str(MODULE/'include'), '-I'+str(WORKSPACE/'edk/user/hwid/include'), '-I'+str(FDT), '-I'+str(HOST/'include'),
          source, MODULE/'core/dm_fw_fit.c', MODULE/'core/dm_fw_metadata.c',
          FDT/'fdt.c', FDT/'fdt_ro.c', '-L'+str(HOST/'lib'), '-Wl,-rpath,'+str(HOST/'lib'),
          '-lcrypto', '-o', binary])

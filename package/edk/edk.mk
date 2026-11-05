@@ -28,6 +28,8 @@ endif
 # modules when modules.order exists in the module source tree.
 EDK_OVERRIDE_SRCDIR_RSYNC_EXCLUSIONS = \
 	--exclude='/device-manager' \
+	--exclude='/user/transfer/build' \
+	--exclude='__pycache__' \
 	--exclude='.build' \
 	--exclude='_build' \
 	--exclude='*.o' \

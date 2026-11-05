@@ -51,7 +51,7 @@ int main(int argc, char **argv) {
         files += ['storage/'+name for name in ('dm_fw_storage.c','dm_fw_storage_block.c','dm_fw_storage_mtd.c')]
         command=['cc','-std=c11','-D_POSIX_C_SOURCE=200809L','-Wall','-Wextra','-Werror']
         command += ['-I'+str(module/path) for path in ('include','core','storage')]
-        command += ['-I'+str(SOURCE/'identity/include'),'-I'+str(HOST/'include'),'-I'+str(HOST/'include/libfdt'),str(source)]
+        command += ['-I'+str(SOURCE.parent/'user/hwid/include'),'-I'+str(HOST/'include'),'-I'+str(HOST/'include/libfdt'),str(source)]
         command += [str(module/f) for f in files]
         command += ['-L'+str(HOST/'lib'),'-Wl,-rpath,'+str(HOST/'lib'),'-lcrypto','-lfdt','-pthread','-o',str(cls.binary)]
         cls.runner=[]
