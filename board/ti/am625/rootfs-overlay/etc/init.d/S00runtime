@@ -1,8 +1,0 @@
-#!/bin/sh
-
-case "$1" in
-	start)
-		mkdir -p /run/dropbear /var/run /var/lock /var/lib /var/log /var/tmp
-		chmod 1777 /var/tmp
-		;;
-esac

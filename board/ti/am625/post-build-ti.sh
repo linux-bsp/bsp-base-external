@@ -58,11 +58,9 @@ do
 	[ ! -f "$password_file" ] || chmod 0600 "$password_file"
 done
 
-# S10pdm owns CAN-dependent PDM lifecycle. Clean the obsolete incremental overlay.
-rm -f "$TARGET_DIR/etc/modules-load.d/pdm.conf"
-
 # Reject malformed service scripts before creating any rootfs image.
-for init_script in "$TARGET_DIR"/etc/init.d/*; do
+for init_script in "$TARGET_DIR"/etc/init.d/* \
+    "$TARGET_DIR"/usr/libexec/bsp/* "$TARGET_DIR"/usr/libexec/device-manager/*; do
     [ -f "$init_script" ] || continue
     IFS= read -r first_line < "$init_script" || continue
     case "$first_line" in

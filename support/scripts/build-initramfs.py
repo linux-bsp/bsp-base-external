@@ -71,17 +71,14 @@ def build(target, board, host, output):
                         copy(prefix+'/'+needed); break
                 else: raise RuntimeError('missing ELF library: '+needed)
 
-        # The AArch64 loader searches /lib64 and /usr/lib64 without a cache.
-        # Preserve Buildroot's directory aliases as well as the ELF files.
+        # This minimal root has its own /lib and /usr/lib directories even when
+        # the target uses merged /usr. Preserve loader search aliases without
+        # redirecting /lib64 to an empty /usr/lib in the independent image.
         for name in ('lib64', 'usr/lib64'):
-            if (target/name).is_symlink():
-                canonical = resolve(name).relative_to(target)
-                (root/canonical).mkdir(parents=True, exist_ok=True)
-                alias = root/name
-                alias.parent.mkdir(parents=True, exist_ok=True)
-                alias.symlink_to(os.path.relpath(root/canonical, alias.parent))
+            (root/name).symlink_to('lib')
+        shutil.copyfile(board/'recovery.interfaces', root/'etc/network/interfaces')
 
-        for name in ('bin/busybox','usr/sbin/fwctl','etc/device-manager/firmware.conf','etc/network/interfaces','usr/share/udhcpc/default.script'):
+        for name in ('bin/busybox','usr/sbin/fwctl','etc/device-manager/firmware.conf','usr/share/udhcpc/default.script'):
             copy(name)
         if (target/'etc/fw_env.config').is_file():
             copy('etc/fw_env.config')

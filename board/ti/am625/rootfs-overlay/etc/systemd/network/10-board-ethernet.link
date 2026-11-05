@@ -1,0 +1,7 @@
+[Match]
+OriginalName=eth*
+
+[Link]
+# Keep the board interface ABI used by recovery, OTA and local health policy.
+NamePolicy=keep
+MACAddressPolicy=none

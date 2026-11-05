@@ -1,0 +1,15 @@
+[Unit]
+Description=Board CAN interfaces
+Before=pdm.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/bsp/can start
+ExecStop=/usr/libexec/bsp/can stop
+RemainAfterExit=yes
+TimeoutStartSec=10s
+TimeoutStopSec=5s
+StandardOutput=journal+console
+
+[Install]
+WantedBy=multi-user.target

@@ -41,6 +41,18 @@ define DEVICE_MANAGER_INSTALL_INIT_SYSV
 	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_LOGCTL)),$(INSTALL) -D -m 0755 $(DEVICE_MANAGER_PKGDIR)/S01logctld $(TARGET_DIR)/etc/init.d/S01logctld)
 endef
 
+# Native systemd units run daemons in the foreground; no second supervisor.
+define DEVICE_MANAGER_INSTALL_INIT_SYSTEMD
+	$(INSTALL) -d $(TARGET_DIR)/usr/lib/systemd/system $(TARGET_DIR)/usr/libexec/device-manager $(TARGET_DIR)/usr/lib/systemd/system-preset
+	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_FWCTL)),$(INSTALL) -m 0644 $(@D)/integration/systemd/fw-health.service $(@D)/integration/systemd/fw-confirm.service $(@D)/integration/systemd/fw-health-failure.service $(TARGET_DIR)/usr/lib/systemd/system/)
+	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_FWCTL)),$(INSTALL) -m 0755 $(@D)/integration/systemd/fw-confirm $(@D)/integration/systemd/fw-health-monitor $(@D)/integration/systemd/fw-health-failure $(TARGET_DIR)/usr/libexec/device-manager/)
+	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_FWCTLD)),$(INSTALL) -m 0644 $(@D)/integration/systemd/fwctld.service $(TARGET_DIR)/usr/lib/systemd/system/)
+	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_FWCTLD)),$(INSTALL) -m 0755 $(@D)/integration/systemd/fwctld-start $(TARGET_DIR)/usr/libexec/device-manager/)
+	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_LOGCTL)),$(INSTALL) -m 0644 $(@D)/integration/systemd/logctld.service $(@D)/integration/systemd/logctl-journal.service $(@D)/integration/systemd/device-shutdown-intent.service $(TARGET_DIR)/usr/lib/systemd/system/)
+	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_LOGCTL)),$(INSTALL) -m 0755 $(@D)/integration/systemd/logctld-start $(TARGET_DIR)/usr/libexec/device-manager/)
+	$(INSTALL) -m 0644 $(@D)/integration/systemd/*.preset $(TARGET_DIR)/usr/lib/systemd/system-preset/
+endef
+
 HOST_DEVICE_MANAGER_VERSION = 1
 HOST_DEVICE_MANAGER_SITE = $(DEVICE_MANAGER_SITE)
 HOST_DEVICE_MANAGER_SITE_METHOD = local

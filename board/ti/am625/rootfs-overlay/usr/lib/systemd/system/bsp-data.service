@@ -1,0 +1,14 @@
+[Unit]
+Description=Board persistent storage
+Before=logctld.service fwctld.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/bsp/data start
+RemainAfterExit=yes
+TimeoutStartSec=10s
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target

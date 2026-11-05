@@ -1,0 +1,16 @@
+[Unit]
+Description=Peripheral driver module
+Requires=bsp-can.service
+After=bsp-can.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/bsp/pdm start
+ExecStop=/usr/libexec/bsp/pdm stop
+RemainAfterExit=yes
+TimeoutStartSec=10s
+TimeoutStopSec=5s
+StandardOutput=journal+console
+
+[Install]
+WantedBy=multi-user.target

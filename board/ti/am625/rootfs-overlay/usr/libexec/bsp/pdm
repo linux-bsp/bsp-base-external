@@ -5,7 +5,7 @@ PATH=/sbin:/bin:/usr/sbin:/usr/bin
 MODULE=pdm
 SYS_MODULE=/sys/module/$MODULE
 MANAGER_DEVICE=/dev/pdm_manager
-CAN_SERVICE=/etc/init.d/S09can
+CAN_SERVICE=/usr/libexec/bsp/can
 
 module_loaded()
 {
@@ -56,7 +56,7 @@ stop()
 
 	# The AM62x RS485 serdev close path can sleep in the OMAP8250 runtime-PM
 	# shutdown callback while modprobe is removing PDM. Keep the driver and its
-	# buses alive until reset; rcK sets this marker before stopping services.
+	# buses alive until reset; device-shutdown-intent sets the stop marker.
 	if [ -e /run/shutdown ]; then
 		echo "OK (kept loaded for reboot)"
 		return 0

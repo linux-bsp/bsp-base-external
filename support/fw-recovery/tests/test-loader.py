@@ -47,7 +47,8 @@ def check(image, qemu, expect_broken=False):
         result = run('bin/busybox', 'true')
         assert result.returncode == 0, result
         # A file-existence test cannot catch this regression; the target loader must fail.
-        (root/'usr/lib64').unlink()
+        for alias in ('lib64', 'usr/lib64'):
+            (root/alias).unlink()
         result = run('usr/sbin/fwctl', 'init')
         assert result.returncode == 127 and 'error while loading shared libraries' in result.stderr, result
         print('PASS: actual ARM64 fwctl/BusyBox execution, all ELF dependencies, missing-alias regression')

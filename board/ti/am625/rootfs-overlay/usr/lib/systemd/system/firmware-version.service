@@ -1,0 +1,11 @@
+[Unit]
+Description=Running firmware identity
+After=bsp-data.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/bsp/firmware-version start
+StandardOutput=journal+console
+
+[Install]
+WantedBy=multi-user.target

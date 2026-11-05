@@ -1,0 +1,16 @@
+[Unit]
+Description=Peripheral debug web
+After=pdm.service
+
+[Service]
+Type=exec
+ExecStartPre=/usr/libexec/pdebug-web/pdebug.cgi --init-token
+ExecStartPre=/usr/sbin/lighttpd -tt -f /etc/lighttpd/lighttpd.conf
+ExecStart=/usr/sbin/lighttpd -D -f /etc/lighttpd/lighttpd.conf
+Restart=on-failure
+RestartSec=3s
+TimeoutStopSec=5s
+StandardOutput=journal+console
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,19 @@
+[Unit]
+Description=Peripheral telemetry demo
+After=pdm.service
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=notify
+ExecStart=/usr/bin/ptelemetryd
+Restart=on-failure
+RestartSec=3s
+WatchdogSec=15s
+TimeoutStartSec=20s
+TimeoutStopSec=5s
+KillMode=control-group
+StandardOutput=journal+console
+
+[Install]
+WantedBy=multi-user.target

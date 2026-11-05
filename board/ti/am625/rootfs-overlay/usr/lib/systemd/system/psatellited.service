@@ -1,0 +1,22 @@
+[Unit]
+Description=Peripheral satellite demo
+Requires=pdm.service
+After=pdm.service
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=notify
+NotifyAccess=main
+ExecStart=/usr/bin/psatellited
+Restart=on-failure
+RestartSec=3s
+WatchdogSec=15s
+TimeoutStartSec=20s
+TimeoutStopSec=5s
+KillMode=control-group
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target
