@@ -5,8 +5,8 @@ DEVICE_MANAGER_SITE_METHOD = local
 DEVICE_MANAGER_OVERRIDE_SRCDIR_RSYNC_EXCLUSIONS = \
 	--exclude='/.build' --exclude='/device-manager/bin' --exclude='/device-manager/build' --exclude='/user/transfer/build' --exclude='/user/fwctl/build' \
 	--exclude='/device-manager/ota/device-server' --exclude='/device-manager/ota/fwctld' --exclude='/device-manager/ota/ota-cli' \
-	--exclude='/device-manager/ota/ota-page.h' --exclude='/device-manager/logging/logctl' --exclude='/device-manager/logging/logctld' \
-	--exclude='/device-manager/time/timectl' --exclude='/device-manager/time/timectld' --exclude='__pycache__'
+	--exclude='/device-manager/ota/ota-page.h' --exclude='/user/logctl/logctl' --exclude='/user/logctl/logctld' \
+	--exclude='/user/timectl/timectl' --exclude='/user/timectl/timectld' --exclude='__pycache__'
 
 ifeq ($(BR2_PACKAGE_DEVICE_MANAGER_FWCTL),y)
 DEVICE_MANAGER_DEPENDENCIES += dtc libcurl openssl libubootenv host-cmake host-python3 host-flex host-bison
@@ -16,11 +16,9 @@ DEVICE_MANAGER_DEPENDENCIES += libcurl openssl busybox
 endif
 ifeq ($(BR2_PACKAGE_DEVICE_MANAGER_LOGCTL),y)
 DEVICE_MANAGER_DEPENDENCIES += busybox libcurl openssl zlib
-DEVICE_MANAGER_TARGETS += logctl logctld
 endif
 ifeq ($(BR2_PACKAGE_DEVICE_MANAGER_TIMECTL),y)
 DEVICE_MANAGER_DEPENDENCIES += libcurl openssl
-DEVICE_MANAGER_TARGETS += timectl timectld
 endif
 
 ifneq ($(strip $(DEVICE_MANAGER_TARGETS)),)
@@ -36,30 +34,34 @@ endef
 endif
 
 # Buildroot owns component selection; one generated seed feeds EDK Kconfig.
-ifeq ($(BR2_PACKAGE_DEVICE_MANAGER_FWCTL),y)
-define DEVICE_MANAGER_BUILD_FIRMWARE
+ifneq ($(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_FWCTL) $(BR2_PACKAGE_DEVICE_MANAGER_LOGCTL) $(BR2_PACKAGE_DEVICE_MANAGER_TIMECTL)),)
+DEVICE_MANAGER_DEPENDENCIES += host-cmake host-python3 host-flex host-bison
+define DEVICE_MANAGER_BUILD_MANAGEMENT
 	mkdir -p $(@D)/.build
-	printf 'CONFIG_ARCH="%s"\nCONFIG_FWCTL=y\nCONFIG_FWCTLD=%s\n' \
-		"$(KERNEL_ARCH)" "$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_FWCTLD)),y,n)" > $(@D)/.build/firmware.config
-	$(TARGET_MAKE_ENV) $(HOST_DIR)/bin/cmake -S $(@D) -B $(@D)/.build/firmware \
-		-DCONFIG_FILE=$(@D)/.build/firmware.config \
+	printf 'CONFIG_ARCH="%s"\nCONFIG_FWCTL=%s\nCONFIG_FWCTLD=%s\nCONFIG_LOGCTL=%s\nCONFIG_TIMECTL=%s\n' \
+		"$(KERNEL_ARCH)" "$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_FWCTL)),y,n)" \
+		"$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_FWCTLD)),y,n)" \
+		"$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_LOGCTL)),y,n)" \
+		"$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_TIMECTL)),y,n)" > $(@D)/.build/management.config
+	$(TARGET_MAKE_ENV) $(HOST_DIR)/bin/cmake -S $(@D) -B $(@D)/.build/management \
+		-DCONFIG_FILE=$(@D)/.build/management.config \
 		-DCMAKE_TOOLCHAIN_FILE=$(HOST_DIR)/share/buildroot/toolchainfile.cmake \
 		-DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=/usr \
 		-DCMAKE_C_FLAGS="$(filter-out -O% -g%,$(TARGET_CFLAGS))" \
 		-DCMAKE_EXE_LINKER_FLAGS="$(TARGET_LDFLAGS)"
-	$(TARGET_MAKE_ENV) $(HOST_DIR)/bin/cmake --build $(@D)/.build/firmware --parallel $(PARALLEL_JOBS)
+	$(TARGET_MAKE_ENV) $(HOST_DIR)/bin/cmake --build $(@D)/.build/management --parallel $(PARALLEL_JOBS)
 endef
-DEVICE_MANAGER_POST_BUILD_HOOKS += DEVICE_MANAGER_BUILD_FIRMWARE
+DEVICE_MANAGER_POST_BUILD_HOOKS += DEVICE_MANAGER_BUILD_MANAGEMENT
 endif
 
 define DEVICE_MANAGER_INSTALL_TARGET_CMDS
-	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_FWCTL)),$(INSTALL) -D -m 0755 $(@D)/.build/firmware/bin/fwctl $(TARGET_DIR)/usr/sbin/fwctl)
-	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_FWCTLD)),$(INSTALL) -D -m 0755 $(@D)/.build/firmware/bin/fwctld $(TARGET_DIR)/usr/sbin/fwctld)
+	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_FWCTL)),$(INSTALL) -D -m 0755 $(@D)/.build/management/bin/fwctl $(TARGET_DIR)/usr/sbin/fwctl)
+	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_FWCTLD)),$(INSTALL) -D -m 0755 $(@D)/.build/management/bin/fwctld $(TARGET_DIR)/usr/sbin/fwctld)
 	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_FWCTLD)),$(INSTALL) -D -m 0644 $(DEVICE_MANAGER_PKGDIR)/fwctld.default $(TARGET_DIR)/etc/default/fwctld)
 	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_LOGCTL)),$(INSTALL) -d $(TARGET_DIR)/data)
-	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_LOGCTL)),$(INSTALL) -D -m 0755 $(@D)/device-manager/logging/logctl $(TARGET_DIR)/usr/sbin/logctl)
-	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_LOGCTL)),$(INSTALL) -D -m 0755 $(@D)/device-manager/logging/logctld $(TARGET_DIR)/usr/sbin/logctld)
-	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_TIMECTL)),$(INSTALL) -D -m 0755 $(@D)/device-manager/time/timectl $(TARGET_DIR)/usr/sbin/timectl)
+	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_LOGCTL)),$(INSTALL) -D -m 0755 $(@D)/.build/management/bin/logctl $(TARGET_DIR)/usr/sbin/logctl)
+	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_LOGCTL)),ln -sf logctl $(TARGET_DIR)/usr/sbin/logctld)
+	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_TIMECTL)),$(INSTALL) -D -m 0755 $(@D)/.build/management/bin/timectl $(TARGET_DIR)/usr/sbin/timectl)
 	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_TIMECTL)),ln -sf timectl $(TARGET_DIR)/usr/sbin/timectld)
 	$(if $(filter y,$(BR2_PACKAGE_DEVICE_MANAGER_TIMECTL)),$(INSTALL) -D -m 0755 $(@D)/device-manager/integration/systemd/timectld-start $(TARGET_DIR)/usr/libexec/device-manager/timectld-start)
 endef
