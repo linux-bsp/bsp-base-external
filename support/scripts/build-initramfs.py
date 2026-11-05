@@ -81,7 +81,7 @@ def build(target, board, host, output):
                 alias.parent.mkdir(parents=True, exist_ok=True)
                 alias.symlink_to(os.path.relpath(root/canonical, alias.parent))
 
-        for name in ('bin/busybox','usr/sbin/fwctl','usr/bin/curl','etc/device-manager/firmware.conf','etc/network/interfaces','usr/share/udhcpc/default.script'):
+        for name in ('bin/busybox','usr/sbin/fwctl','etc/device-manager/firmware.conf','etc/network/interfaces','usr/share/udhcpc/default.script'):
             copy(name)
         if (target/'etc/fw_env.config').is_file():
             copy('etc/fw_env.config')

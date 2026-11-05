@@ -25,14 +25,16 @@ config BR2_PACKAGE_DEVICE_MANAGER_FWCTL
 config BR2_PACKAGE_DEVICE_MANAGER_FWCTLD
     bool "fwctld OTA agent"
     depends on BR2_PACKAGE_DEVICE_MANAGER_FWCTL
-    select BR2_PACKAGE_LIBCURL_CURL
     help
       Install the OTA polling, download, installation and reporting daemon.
-      Requires sha256sum in BusyBox for firmware validation.
+      Uses the shared libcurl transfer component for durable downloads.
 
 config BR2_PACKAGE_DEVICE_MANAGER_LOGCTL
     bool "logctl / logctld boot logs"
+    depends on BR2_TOOLCHAIN_HAS_THREADS
     select BR2_PACKAGE_LIBCURL
+    select BR2_PACKAGE_OPENSSL
+    select BR2_PACKAGE_OPENSSL_FORCE_LIBOPENSSL
     select BR2_PACKAGE_CA_CERTIFICATES
     help
       Install bounded per-boot logging and optional HTTP(S) forwarding.

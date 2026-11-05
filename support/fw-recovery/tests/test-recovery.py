@@ -57,9 +57,9 @@ int main(int argc, char **argv) {
 ''')
         cls.native=root/'fwctl-recovery-test'
         subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror',
-            '-I'+str(HOST/'include'),str(wrapper),str(SOURCE/'recovery/fw-init.c'),
+            '-I'+str(HOST/'include'),'-I'+str(SOURCE/'transfer/include'),str(wrapper),str(SOURCE/'recovery/fw-init.c'),
             '-L'+str(HOST/'lib'),'-Wl,-rpath,'+str(HOST/'lib'),
-            '-lcrypto','-pthread','-o',str(cls.native)],check=True)
+            str(SOURCE/'transfer/build/libdm-transfer.a'),'-lcurl','-lcrypto','-pthread','-o',str(cls.native)],check=True)
 
     @classmethod
     def tearDownClass(cls):
@@ -111,10 +111,10 @@ int main(int argc, char **argv) {
     def test_delayed_root_device_discovery(self):
         binary = self.dir/'storage-ready-test'
         subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror',
-            '-I'+str(HOST/'include'), str(SOURCE/'recovery/tests/storage-ready-test.c'),
+            '-I'+str(HOST/'include'), '-I'+str(SOURCE/'transfer/include'), str(SOURCE/'recovery/tests/storage-ready-test.c'),
             '-L'+str(HOST/'lib'), '-Wl,-rpath,'+str(HOST/'lib'),
             '-Wl,--wrap=access', '-Wl,--wrap=fork', '-Wl,--wrap=execv',
-            '-lcrypto', '-pthread', '-o', str(binary)], check=True)
+            str(SOURCE/'transfer/build/libdm-transfer.a'), '-lcurl', '-lcrypto', '-pthread', '-o', str(binary)], check=True)
         result = subprocess.run([str(binary)], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stderr, '')
@@ -132,10 +132,11 @@ int main(int argc, char **argv) {
                 '--host',str(HOST),'--output',str(output)],check=True,stdout=subprocess.DEVNULL)
         self.assertEqual(one.read_bytes(),two.read_bytes())
         entries=cpio_entries(one)
-        for name in ('init','usr/sbin/fwctl','usr/bin/curl','bin/busybox',
+        for name in ('init','usr/sbin/fwctl','bin/busybox',
                      'etc/device-manager/firmware.conf','etc/fw-recovery.conf','etc/network/interfaces',
                      'sbin/switch_root','sbin/ip','sbin/ifup','var/run','dev/console'):
             self.assertIn(name,entries)
+        self.assertNotIn('usr/bin/curl', entries)
         self.assertEqual(entries['init'][1],b'#!/bin/sh\nexec /usr/sbin/fwctl init\n')
         for alias in ('lib64', 'usr/lib64'):
             self.assertEqual(entries[alias][1], b'lib')

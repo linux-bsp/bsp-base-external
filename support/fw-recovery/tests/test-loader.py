@@ -41,18 +41,16 @@ def check(image, qemu, expect_broken=False):
         assert result.returncode == 2 and 'PID 1' in result.stderr, result
         result = run('usr/sbin/fwctl', 'recovery', 'check-root', '/missing', '/missing')
         assert result.returncode == 2, result
-        for program in ('usr/sbin/fwctl', 'usr/bin/curl', 'bin/busybox'):
+        for program in ('usr/sbin/fwctl',  'bin/busybox'):
             result = run(program, listing=True)
             assert result.returncode == 0 and 'not found' not in result.stdout + result.stderr, result
-        result = run('usr/bin/curl', '--version')
-        assert result.returncode == 0 and 'curl ' in result.stdout, result
         result = run('bin/busybox', 'true')
         assert result.returncode == 0, result
         # A file-existence test cannot catch this regression; the target loader must fail.
         (root/'usr/lib64').unlink()
         result = run('usr/sbin/fwctl', 'init')
         assert result.returncode == 127 and 'error while loading shared libraries' in result.stderr, result
-        print('PASS: actual ARM64 fwctl/curl/BusyBox execution, all ELF dependencies, missing-alias regression')
+        print('PASS: actual ARM64 fwctl/BusyBox execution, all ELF dependencies, missing-alias regression')
 
 
 if __name__ == '__main__':
