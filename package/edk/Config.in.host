@@ -5,16 +5,16 @@ config BR2_PACKAGE_HOST_EDK
 
 if BR2_PACKAGE_HOST_EDK
 
-config BR2_PACKAGE_HOST_EDK_SERVER
-    bool "device-server"
+config BR2_PACKAGE_HOST_EDK_DMSERVER
+    bool "dmserver"
     default y
     help
       Install the Device Manager Web and OTA server to host/bin.
 
-config BR2_PACKAGE_HOST_EDK_OTA_CLI
-    bool "ota-cli"
+config BR2_PACKAGE_HOST_EDK_DMCLI
+    bool "dmcli"
     default y
     help
-      Install the OTA publication CLI to host/bin.
+      Install dmcli with OTA upload, publication and query subcommands to host/bin.
 
 endif

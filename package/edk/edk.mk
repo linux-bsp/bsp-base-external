@@ -50,7 +50,7 @@ define EDK_CONFIGURE_CMDS
         --set FWCTLD=$(if $(filter y,$(BR2_PACKAGE_EDK_FWCTLD)),y,n) \
         --set LOGCTL=$(if $(filter y,$(BR2_PACKAGE_EDK_LOGCTL)),y,n) \
         --set TIMECTL=$(if $(filter y,$(BR2_PACKAGE_EDK_TIMECTL)),y,n) \
-        --set DEVICE_SERVER=n --set OTA_CLI=n --set MANAGEMENT_TESTS=n --set TRANSFER_TESTS=n
+        --set DMSERVER=n --set DMCLI=n --set MANAGEMENT_TESTS=n --set TRANSFER_TESTS=n
     $(TARGET_MAKE_ENV) $(MAKE) -C $(@D) $(EDK_MAKE_OPTS) configure
     $(HOST_DIR)/bin/python3 $(@D)/scripts/check_buildroot.py --build-dir $(EDK_BUILD_OUTPUT) --web "$(BR2_PACKAGE_EDK_WEB)"
 endef
@@ -88,18 +88,18 @@ HOST_EDK_SITE = $(EDK_SITE)
 HOST_EDK_SITE_METHOD = local
 HOST_EDK_OVERRIDE_SRCDIR_RSYNC_EXCLUSIONS = $(EDK_OVERRIDE_SRCDIR_RSYNC_EXCLUSIONS)
 HOST_EDK_DEPENDENCIES = host-cmake host-python3 host-flex host-bison host-pkgconf
-ifeq ($(BR2_PACKAGE_HOST_EDK_SERVER),y)
+ifeq ($(BR2_PACKAGE_HOST_EDK_DMSERVER),y)
 HOST_EDK_DEPENDENCIES += host-sqlite host-zlib host-uboot-tools host-openssl
 endif
-ifeq ($(BR2_PACKAGE_HOST_EDK_OTA_CLI),y)
+ifeq ($(BR2_PACKAGE_HOST_EDK_DMCLI),y)
 HOST_EDK_DEPENDENCIES += host-libcurl host-openssl
 endif
 
 define HOST_EDK_CONFIGURE_CMDS
     $(HOST_DIR)/bin/python3 $(@D)/scripts/buildroot_config.py \
         --preset $(@D)/configs/management_base_defconfig --output $(@D)/.build/host.config --arch "$(HOSTARCH)" \
-        --set DEVICE_SERVER=$(if $(filter y,$(BR2_PACKAGE_HOST_EDK_SERVER)),y,n) \
-        --set OTA_CLI=$(if $(filter y,$(BR2_PACKAGE_HOST_EDK_OTA_CLI)),y,n)
+        --set DMSERVER=$(if $(filter y,$(BR2_PACKAGE_HOST_EDK_DMSERVER)),y,n) \
+        --set DMCLI=$(if $(filter y,$(BR2_PACKAGE_HOST_EDK_DMCLI)),y,n)
     $(HOST_MAKE_ENV) EDK_SOURCE_DIR="$(EDK_SITE)" $(HOST_DIR)/bin/cmake -S $(@D) -B $(@D)/.build/host \
         -DCONFIG_FILE=$(@D)/.build/host.config -DCMAKE_C_COMPILER="$(HOSTCC)" \
         -DCMAKE_PREFIX_PATH="$(HOST_DIR)" -DCMAKE_BUILD_TYPE=Release \

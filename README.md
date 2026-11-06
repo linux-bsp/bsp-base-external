@@ -47,9 +47,9 @@ a separately configured SDK with suitable headers. This is not an i.MX6ULL SDK.
 
 ## OTA publication, automatic updates and recovery
 
-The C `device-server` in the `edk/user/apps/device-manager/` module provides a web interface to upload,
-review, and publish firmware releases. The standalone C `ota-cli` provides
-HTTP upload, publication, and status queries from an SSH terminal. Devices poll, download, and verify the
+The C `dmserver` in the `edk/user/apps/device-manager/` module provides a web interface to upload,
+review, and publish firmware releases. The C `dmcli ota` subcommands provide
+HTTP upload, publication, and status queries from a terminal. Devices poll, download, and verify the
 published release, install it with `fwctl`, reboot, and report the result after
 boot health confirmation when automatic installation is enabled. U-Boot can
 request the exact kernel version from the same server to repair a damaged slot.
@@ -63,4 +63,4 @@ before deployment.
 
 板级构建已接入 [initramfs + rootfs A/B](board/ti/am625/verified-boot.md)，包含完整性检查、备用 deployment 回退和按内容哈希恢复 rootfs。
 
-Build host tools with `make -C buildroot O="$PWD/output/am625" host-edk` from the workspace. The package installs `device-server` and `ota-cli` under `output/am625/host/bin/`. Target-side firmware, logging and time tools are selectable outputs of the edk package. Host tools are selected through host-edk.
+Build host tools with `make -C buildroot O="$PWD/output/am625" host-edk` from the workspace. The package installs `dmserver` and `dmcli` under `output/am625/host/bin/`. Target-side firmware, logging and time tools are selectable outputs of the edk package. Host tools are selected through host-edk.
