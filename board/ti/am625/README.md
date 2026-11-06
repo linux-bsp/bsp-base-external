@@ -23,9 +23,7 @@ ITS 保存在构建输出中供检查，不需要维护板级 ITS 或组件 geni
 make -C buildroot O="$PWD/output/am625" all
 ```
 
-首次配置使用 `alientek_am62x_defconfig`。旧输出目录升级构建流程时，将 `.config` 中
-`BR2_ROOTFS_POST_IMAGE_SCRIPT_ARGS` 更新为
-`-c $(BR2_EXTERNAL_LINUX_BSP_PATH)/board/ti/am625/firmware.json`，保留其余工具链配置。
+首次配置选择 alientek_am62x_defconfig；已有定制工具链输出目录直接构建，保留其配置。
 
 构建产物包括 `images/firmware.json`（已解析配置）、`firmware-identity.json`、
 `release/*.its`、`release/*.itb` 和工厂镜像。设备自身 HWID 由 U-Boot 环境保存。
@@ -48,7 +46,7 @@ access key from `cat /run/pdebug-web/token`. The key changes after reboot unless
 a private root-owned mode-0600 `/etc/edk/pdebug-web.token` is supplied. The CGI
 executes the installed pdebug with bounded arguments/output/time and reads fixed
 log sources; it does not execute shell command lines. Configuration/startup is
-in `rootfs-overlay/etc/lighttpd/lighttpd.conf` and `etc/init.d/S50lighttpd`.
+in `rootfs-overlay/etc/lighttpd/lighttpd.conf` and `pdebug-web.service`.
 Use this endpoint on the development network. Select a device from the actual
 PDM inventory to display MCU, LED, Satellite or Power controls. Selection does
 not execute peripheral commands; power outputs are never enabled automatically.
@@ -61,14 +59,8 @@ password-file paths, timeouts, and protocol flags. Select one with
 `rootfs-overlay/etc/libbmc/` are ignored by Git; the corresponding `.example`
 files document their expected names.
 
-## 分阶段固件验证
+## 固件验证与历史
 
-正常 eMMC 启动的 FIT 校验、dm-verity 镜像生成和上板验证见 [分阶段完整性验证](verified-boot.md)。
-
-- [v1.0.16 OTA 验证记录](releases/v1.0.16.md)
-- [v0.0.1 / 4a7e87c2 OTA 验证记录](releases/v0.0.1-4a7e87c2.md)
-- [v0.0.1 / e993e58c OTA 验证记录](releases/v0.0.1-e993e58c.md)
-- [v0.0.1 / 6cee5c9d OTA 验证记录](releases/v0.0.1-6cee5c9d.md)
-- [v0.0.1 / 5ad4aa1e OTA 验证记录](releases/v0.0.1-5ad4aa1e.md)
-- [v0.0.1 / 64373f72 公共 HWID 配置验证](releases/v0.0.1-64373f72.md)
-- [v0.0.1 / 07071f2d 统一 JSON 生成固件验证](releases/v0.0.1-07071f2d.md)
+启动完整性、独立 initramfs 和 rootfs A/B 见 [恢复说明](verified-boot.md)。
+当前基线以 workspace 的 docs/am62x/edk-module-refactoring-validation.md 为准，
+旧版本身份与验收边界集中在 [历史发布记录](releases/README.md)。

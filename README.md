@@ -31,14 +31,14 @@ It does not enable a kernel, bootloader, board applications, or rootfs images.
 Use a separate output tree so the board configuration is preserved:
 
 ```sh
-export BR2_DL_DIR="$HOME/workspace/dl"
+export BR2_DL_DIR="$HOME/workspaces/dl"
 make -C buildroot O="$PWD/output/am62x-sdk" \
   BR2_EXTERNAL=../bsp-base-external am62x_sdk_defconfig
 make -C output/am62x-sdk sdk
 ```
 
 Buildroot writes `aarch64-buildroot-linux-gnu_sdk-buildroot.tar.gz` under
-`output/am62x-sdk/images/`. Extract it manually into `$HOME/workspace/toolchain/`
+`output/am62x-sdk/images/`. Extract it manually into `$HOME/workspaces/toolchain/`
 and run the extracted `relocate-sdk.sh` before using the SDK. Keep each SDK
 version in a separate directory; do not overlay an existing installation.
 The original `make sdk` target is used without an additional install target.
@@ -47,18 +47,20 @@ a separately configured SDK with suitable headers. This is not an i.MX6ULL SDK.
 
 ## OTA publication, automatic updates and recovery
 
-The C `device-server` in the integrated `edk/device-manager/` module provides a web interface to upload,
+The C `device-server` in the `edk/host/device-manager/` module provides a web interface to upload,
 review, and publish firmware releases. The standalone C `ota-cli` provides
 HTTP upload, publication, and status queries from an SSH terminal. Devices poll, download, and verify the
 published release, install it with `fwctl`, reboot, and report the result after
 boot health confirmation when automatic installation is enabled. U-Boot can
 request the exact kernel version from the same server to repair a damaged slot.
-See [the Device Manager guide](../edk/device-manager/README.md) for build, publication, device
-configuration, and test commands. The AM62x configuration includes `fwctld`;
-its boot service is disabled until explicitly configured.
+See [the Device Manager guide](../edk/host/device-manager/README.md) for build, publication, device
+configuration, and test commands. The AM62x configuration includes `fwctld`.
+Package defaults leave it disabled; the AM625 board overlay supplies the development
+server and enables polling. Review `/etc/default/fwctld` and persistent overrides
+before deployment.
 
 ## AM625 独立恢复环境
 
 板级构建已接入 [initramfs + rootfs A/B](board/ti/am625/verified-boot.md)，包含完整性检查、备用 deployment 回退和按内容哈希恢复 rootfs。
 
-Build host tools with `make -C buildroot O="$PWD/output/am625" host-device-manager` from the workspace. The package installs `device-server` and `ota-cli` under `output/am625/host/bin/`. Target-side `fwctl` (including initramfs recovery), `fwctld` and `logctl` are selectable outputs of the same `device-manager` package.
+Build host tools with `make -C buildroot O="$PWD/output/am625" host-edk` from the workspace. The package installs `device-server` and `ota-cli` under `output/am625/host/bin/`. Target-side firmware, logging and time tools are selectable outputs of the edk package. Host tools are selected through host-edk.
