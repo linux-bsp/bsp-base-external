@@ -97,7 +97,7 @@ def build_in_place(config_path, images, host, target):
     its.write_text(release(config, identity, hashes, minutes))
     run([mkimage, '-f', its, output / 'release.itb'], env)
     write_metadata(host, images, identity)
-    write_manifest(images, host, config_path, target, epoch)
+    write_manifest(images, host, config_path, target, epoch, config.version_file)
     if 'factory' in config.data:
         factory = config.data['factory']
         if 'environment' in factory:

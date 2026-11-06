@@ -27,6 +27,7 @@ class Layout(unittest.TestCase):
         self.target = Path(self.tmp.name)/'target'
         self.build = Path(self.tmp.name)/'build'
         self.data = json.loads((BOARD/'firmware.json').read_text())
+        self.data['version'] = config.load(BOARD/'firmware.json').data['version']
         for relative in (self.data['validation']['linux_layout'],self.data['factory']['layout']):
             path=self.board/relative;path.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(BOARD/relative,path)
         for relative in (self.data['factory']['environment'],'etc/device-manager/firmware.conf','etc/fw_env.config'):

@@ -3,6 +3,7 @@ from dataclasses import dataclass
 import json
 from pathlib import Path, PurePosixPath
 import re
+from typing import Optional
 
 COMPONENTS = ('bootloader', 'kernel', 'rootfs')
 
@@ -58,11 +59,28 @@ def version_number(value):
     return major << 16 | minor << 8 | patch
 
 
+def resolve_version(value, board):
+    """A version file is relative to the declaration, never to the build cwd."""
+    source = None
+    if isinstance(value, dict):
+        object_keys(value, {'file'}, {'file'})
+        name = value['file']
+        # Unlike payload paths, a version source may be in a sibling repository.
+        if (not isinstance(name, str) or not re.fullmatch(r'[A-Za-z0-9_./-]+', name)
+                or PurePosixPath(name).is_absolute() or name == '.'
+                or PurePosixPath(name).as_posix() != name):
+            raise ValueError('version file must be a canonical relative path')
+        source = (board / name).resolve()
+        value = source.read_text(encoding='ascii').strip()
+    return value, version_number(value), source
+
+
 @dataclass
 class Firmware:
     data: dict
     board: Path
     version: int
+    version_file: Optional[Path] = None
 
 
 def load(path):
@@ -73,7 +91,7 @@ def load(path):
     if type(data['schema_version']) is not int or data['schema_version'] != 1:
         raise ValueError('unsupported firmware schema_version')
     text(data['description']); identifier(data['architecture'])
-    version = version_number(data['version'])
+    data['version'], version, version_file = resolve_version(data['version'], path.resolve().parent)
     data['rollback_index'] = unsigned(data.get('rollback_index', 0))
     hwids = data['hwids']
     if not isinstance(hwids, list) or not 1 <= len(hwids) <= 256:
@@ -183,4 +201,4 @@ def load(path):
         for value in dtbs: relative_path(value)
         if 'factory' not in data or 'environment' not in data['factory']:
             raise ValueError('layout validation requires factory layout and environment')
-    return Firmware(data, path.resolve().parent, version)
+    return Firmware(data, path.resolve().parent, version, version_file)

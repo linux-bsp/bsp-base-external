@@ -11,10 +11,12 @@ sys.path.insert(0, str(WORKSPACE/'edk/scripts'))
 from source_info import record
 
 
-def write(images, host, config_path, target, epoch):
+def write(images, host, config_path, target, epoch, version_file=None):
     sources = {name: record(WORKSPACE/name) for name in
                ['.', 'edk', 'bsp-base-external', 'buildroot', 'linux/linux-7.0', 'uboot/u-boot-2026.04', 'libbmc']}
     configs = {'firmware': config_path, 'buildroot': Path(os.environ.get('BR2_CONFIG','/missing'))}
+    if version_file is not None:
+        configs['edk_version'] = version_file
     build = Path(os.environ.get('BUILD_DIR','/missing'))
     package_info = {}
     for name in ['edk','host-edk']:
@@ -34,6 +36,11 @@ def write(images, host, config_path, target, epoch):
         result = subprocess.run([str(host/'bin'/name),option],capture_output=True,text=True,check=True)
         tools[name] = (result.stdout+result.stderr).splitlines()[0]
     identity = json.loads((images/'firmware-identity.json').read_text())
+    # A VERSION change without rebuilding EDK must never produce a mixed release.
+    if version_file is not None:
+        for name, info in package_info.items():
+            if info['version'] != identity['tag'].removeprefix('v'):
+                raise ValueError(f'{name} build version differs from firmware; rebuild {name}')
     data = dict(schema_version=1, source_date_epoch=epoch, identity=identity,
                 sources=sources, configuration_sha256=checksums, packages=package_info, tools=tools)
     (images/'build-manifest.json').write_text(json.dumps(data,indent=2,sort_keys=True)+'\n')

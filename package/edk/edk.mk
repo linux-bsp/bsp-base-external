@@ -1,6 +1,6 @@
 # EDK is pinned by the surrounding workspace Git submodule.
-EDK_VERSION = 2.0.0
 EDK_SITE = $(BR2_EXTERNAL_LINUX_BSP_PATH)/../edk
+EDK_VERSION = $(strip $(shell cat "$(EDK_SITE)/VERSION"))
 EDK_SITE_METHOD = local
 EDK_LICENSE = Proprietary, GPL-2.0+
 EDK_DEPENDENCIES = host-python3 host-pkgconf host-cmake host-flex host-bison

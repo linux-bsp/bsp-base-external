@@ -11,8 +11,10 @@ ITS 保存在构建输出中供检查，不需要维护板级 ITS 或组件 geni
 
 ## 配置与构建
 
-- 调整版本、HWID、输入镜像及加载地址：修改 `firmware.json`。
-- 软件版本默认保持 `0.0.1`；内容 ID 和组件 SHA256 在构建时自动计算。
+- 调整 HWID、输入镜像及加载地址：修改 `firmware.json`。
+- EDK 与设备固件共用 `edk/VERSION`，当前为 `0.0.1`；JSON 引用此文件，
+  Buildroot 的 target/host EDK 包也读取同一来源。内容 ID 和组件 SHA256
+  在构建时自动计算，同版本的不同内容使用 hash ID 区分。
 - `images` 描述实际输入；架构默认继承顶层 `architecture`，R5 镜像可单独指定 `arm`。
 - `release.components` 当前为 kernel/rootfs；上传后服务端按包内全部 HWID 发布。
 - `factory.layout` 指定独立的物理存储布局，当前为 `layout/genimage_sdcard.cfg`。

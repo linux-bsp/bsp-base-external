@@ -9,7 +9,7 @@
 | --- | --- |
 | `schema_version` | 配置格式，目前为 1 |
 | `description` | 固件说明 |
-| `version` | `major.minor.patch`，统一用于所有 FIT；当前保持 `0.0.1` |
+| `version` | 版本源，AM625 使用 `{"file":"../../../../edk/VERSION"}`；统一用于所有 FIT |
 | `rollback_index` | 统一防回滚索引，默认 0 |
 | `hwids` | 支持的完整 HWID 列表，1～256 项，小写、有效且不重复 |
 | `architecture` | 镜像默认架构，例如 `arm64` 或 `arm` |
@@ -17,6 +17,13 @@
 | `release` | 发布说明及本次升级包含的组件 |
 | `factory` | 可选的工厂存储布局和默认环境来源 |
 | `validation` | 可选的独立布局一致性检查来源，不生成分区配置 |
+
+EDK 的 `VERSION` 是 SDK、Buildroot target/host 包和设备固件的共同版本源，
+当前为 `0.0.1`。版本文件路径相对于 `firmware.json` 所在目录，支持引用相邻
+仓库；缺失、内容无效或已构建 EDK 的版本不符时拒绝生成发布包。输出的
+`images/firmware.json` 保存解析后的版本值，构建清单保存版本文件 SHA256。
+生成器也支持直接填入 `major.minor.patch`，供不依赖 EDK 的独立描述和测试使用。
+同一版本下继续使用完整固件内容 SHA256 区分构建；人类日志显示前八位。
 
 组件的 `images` 每项具有 `name`、`file`；`file` 相对于 Buildroot images 目录。
 `description`、`architecture`、`os` 可以按镜像覆盖；组件 `os` 由镜像继承。

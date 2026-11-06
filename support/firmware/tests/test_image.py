@@ -32,6 +32,7 @@ class FirmwareImage(unittest.TestCase):
         self.target = self.root / 'target'; self.target.mkdir()
         self.path = self.root / 'firmware.json'
         self.data = json.loads((BOARD / 'firmware.json').read_text())
+        self.data['version'] = configuration.load(BOARD / 'firmware.json').data['version']
         self.data.pop('factory')
         self.data.pop('validation', None)
         self.data['components']['rootfs']['verity'] = False
@@ -81,9 +82,53 @@ class FirmwareImage(unittest.TestCase):
     def test_board_configuration_has_one_version_and_explicit_inputs(self):
         config = configuration.load(BOARD / 'firmware.json')
         self.assertEqual(config.version, 1)
+        self.assertEqual(config.version_file, WORKSPACE / 'edk/VERSION')
+        self.assertEqual(config.data['version'], (WORKSPACE / 'edk/VERSION').read_text().strip())
         self.assertEqual(config.data['components']['kernel']['images'][0]['load'], 0x82000000)
         self.assertEqual(config.data['components']['bootloader']['images'][0]['architecture'], 'arm')
         self.assertEqual(config.data['components']['bootloader']['images'][1]['architecture'], 'arm64')
+
+    def test_version_file_updates_every_fit_and_records_source_checksum(self):
+        source = self.root / 'VERSION'
+        source.write_text('0.0.1\n')
+        self.data['version'] = {'file': 'VERSION'}
+        self.build()
+        original = json.loads((self.images/'firmware-identity.json').read_text())
+        source.write_text('1.2.3\n')
+        self.build()
+        for name in (*configuration.COMPONENTS, 'release'):
+            self.assertEqual(self.prop(name, 'fw,version', 'u'), str(0x10203))
+        identity = json.loads((self.images/'firmware-identity.json').read_text())
+        self.assertEqual(identity['tag'], 'v1.2.3')
+        self.assertNotEqual(identity['firmware_id'], original['firmware_id'])
+        manifest = json.loads((self.images/'build-manifest.json').read_text())
+        self.assertEqual(manifest['configuration_sha256']['edk_version'],
+                         hashlib.sha256(source.read_bytes()).hexdigest())
+
+    def test_version_file_rejects_missing_invalid_and_ambiguous_sources(self):
+        for value in [{'file':'missing'}, {'file':'/VERSION'}, {'file':'a//VERSION'},
+                      {'file':True}, {}, {'file':'VERSION','value':'0.0.1'}]:
+            self.data['version'] = value
+            with self.subTest(value=value), self.assertRaises((OSError, ValueError)):
+                self.load()
+        source = self.root/'VERSION'
+        self.data['version'] = {'file':'VERSION'}
+        for value in ['v0.0.1\n', '0.0.1\n1.0.0\n', '1.256.0\n']:
+            source.write_text(value)
+            with self.subTest(contents=value), self.assertRaises(ValueError): self.load()
+
+    def test_stale_edk_build_cannot_replace_previous_release(self):
+        (self.root/'VERSION').write_text('0.0.1\n')
+        self.data['version'] = {'file':'VERSION'}
+        info = self.root/'build/edk-custom/.build/target/build-info.json'
+        info.parent.mkdir(parents=True)
+        info.write_text(json.dumps({'version':'0.0.1'}))
+        with mock.patch.dict(os.environ, {'BUILD_DIR':str(self.root/'build')}):
+            self.build()
+            original = {p.name:p.read_bytes() for p in (self.images/'release').glob('*.itb')}
+            info.write_text(json.dumps({'version':'2.0.0'}))
+            with self.assertRaisesRegex(ValueError, 'rebuild edk'): self.build()
+            self.assertEqual(original, {p.name:p.read_bytes() for p in (self.images/'release').glob('*.itb')})
 
     def test_real_fits_and_release_identity_are_generated_from_json(self):
         self.build()
