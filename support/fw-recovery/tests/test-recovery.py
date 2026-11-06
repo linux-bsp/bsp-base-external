@@ -57,7 +57,9 @@ int main(int argc, char **argv) {
 ''')
         cls.native=root/'fwctl-recovery-test'
         subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror',
-            '-I'+str(HOST/'include'),'-I'+str(SOURCE/'user/lib/transfer/include'),str(wrapper),str(SOURCE/'user/apps/fwctl/recovery/fw-init.c'),
+            '-I'+str(HOST/'include'),'-I'+str(SOURCE/'user/lib/transfer/include'),
+            '-I'+str(SOURCE/'user/lib/osa/include'),str(SOURCE/'user/lib/osa/src/osa_log.c'),
+            str(wrapper),str(SOURCE/'user/apps/fwctl/recovery/fw-init.c'),
             '-L'+str(HOST/'lib'),'-Wl,-rpath,'+str(HOST/'lib'),
             os.environ.get('TRANSFER_CLIENT_ARCHIVE', str(WORKSPACE/'edk/.build/management-tests/lib/libedk_transfer_client.a')),'-lcurl','-lcrypto','-pthread','-o',str(cls.native)],check=True)
 
@@ -111,7 +113,9 @@ int main(int argc, char **argv) {
     def test_delayed_root_device_discovery(self):
         binary = self.dir/'storage-ready-test'
         subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror',
-            '-I'+str(HOST/'include'), '-I'+str(SOURCE/'user/lib/transfer/include'), str(SOURCE/'user/apps/fwctl/tests/recovery/storage-ready-test.c'),
+            '-I'+str(HOST/'include'), '-I'+str(SOURCE/'user/lib/transfer/include'),
+            '-I'+str(SOURCE/'user/lib/osa/include'), str(SOURCE/'user/lib/osa/src/osa_log.c'),
+            str(SOURCE/'user/apps/fwctl/tests/recovery/storage-ready-test.c'),
             '-L'+str(HOST/'lib'), '-Wl,-rpath,'+str(HOST/'lib'),
             '-Wl,--wrap=access', '-Wl,--wrap=fork', '-Wl,--wrap=execv',
             os.environ.get('TRANSFER_CLIENT_ARCHIVE', str(WORKSPACE/'edk/.build/management-tests/lib/libedk_transfer_client.a')), '-lcurl', '-lcrypto', '-pthread', '-o', str(binary)], check=True)
