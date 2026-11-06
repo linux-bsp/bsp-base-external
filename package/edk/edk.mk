@@ -79,15 +79,7 @@ endef
 
 # Native systemd units run daemons in the foreground; no second supervisor.
 define EDK_INSTALL_INIT_SYSTEMD
-	$(INSTALL) -d $(TARGET_DIR)/usr/lib/systemd/system $(TARGET_DIR)/usr/libexec/device-manager $(TARGET_DIR)/usr/lib/systemd/system-preset
-	$(if $(filter y,$(BR2_PACKAGE_EDK_FWCTL)),$(INSTALL) -m 0644 $(@D)/integration/systemd/fw-health.service $(@D)/integration/systemd/fw-confirm.service $(@D)/integration/systemd/fw-health-failure.service $(TARGET_DIR)/usr/lib/systemd/system/)
-	$(if $(filter y,$(BR2_PACKAGE_EDK_FWCTL)),$(INSTALL) -m 0755 $(@D)/integration/systemd/fw-confirm $(@D)/integration/systemd/fw-health-monitor $(@D)/integration/systemd/fw-health-failure $(TARGET_DIR)/usr/libexec/device-manager/)
-	$(if $(filter y,$(BR2_PACKAGE_EDK_FWCTLD)),$(INSTALL) -m 0644 $(@D)/integration/systemd/fwctld.service $(TARGET_DIR)/usr/lib/systemd/system/)
-	$(if $(filter y,$(BR2_PACKAGE_EDK_FWCTLD)),$(INSTALL) -m 0755 $(@D)/integration/systemd/fwctld-start $(TARGET_DIR)/usr/libexec/device-manager/)
-	$(if $(filter y,$(BR2_PACKAGE_EDK_LOGCTL)),$(INSTALL) -m 0644 $(@D)/integration/systemd/logctld.service $(@D)/integration/systemd/logctl-journal.service $(@D)/integration/systemd/device-shutdown-intent.service $(TARGET_DIR)/usr/lib/systemd/system/)
-	$(if $(filter y,$(BR2_PACKAGE_EDK_LOGCTL)),$(INSTALL) -m 0755 $(@D)/integration/systemd/logctld-start $(TARGET_DIR)/usr/libexec/device-manager/)
-	$(if $(filter y,$(BR2_PACKAGE_EDK_TIMECTL)),$(INSTALL) -m 0644 $(@D)/integration/systemd/timectld.service $(TARGET_DIR)/usr/lib/systemd/system/)
-	$(INSTALL) -m 0644 $(@D)/integration/systemd/*.preset $(TARGET_DIR)/usr/lib/systemd/system-preset/
+    DESTDIR=$(TARGET_DIR) $(HOST_DIR)/bin/cmake --install $(EDK_BUILD_OUTPUT) --prefix /usr --component services
 endef
 
 

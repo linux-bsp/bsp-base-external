@@ -72,3 +72,7 @@ for init_script in "$TARGET_DIR"/etc/init.d/* \
             ;;
     esac
 done
+
+# Validate actual installed service entry points, including target-root symlinks.
+"$HOST_DIR/bin/python3" "$board_dir/../../../../edk/scripts/check_install.py" \
+    --root "$TARGET_DIR" --elf || exit 1
