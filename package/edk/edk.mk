@@ -30,8 +30,8 @@ endif
 ifeq ($(BR2_PACKAGE_EDK_TIMECTL),y)
 EDK_DEPENDENCIES += libcurl openssl
 endif
-EDK_SOURCE_ID = $(shell git -C "$(EDK_SITE)" describe --always --dirty 2>/dev/null || echo archive)
-EDK_MAKE_OPTS = EDK_SOURCE_REVISION="$(EDK_SOURCE_ID)" BUILD_DIR="$(EDK_BUILD_OUTPUT)" \
+EDK_SOURCE_ID = $(shell git -C "$(EDK_SITE)" rev-parse HEAD 2>/dev/null || echo archive)
+EDK_MAKE_OPTS = EDK_SOURCE_DIR="$(EDK_SITE)" EDK_SOURCE_REVISION="$(EDK_SOURCE_ID)" BUILD_DIR="$(EDK_BUILD_OUTPUT)" \
     PYTHON3="$(HOST_DIR)/bin/python3" HOSTCC="$(HOSTCC)" \
     MODULES_BUILD_DIR="$(EDK_MODULES_OUTPUT)" KERNEL_SRC="$(LINUX_DIR)" \
     ARCH="$(KERNEL_ARCH)" CROSS_COMPILE="$(TARGET_CROSS)" CC="$(TARGET_CC)" \
@@ -100,7 +100,7 @@ define HOST_EDK_CONFIGURE_CMDS
         --preset $(@D)/configs/management_base_defconfig --output $(@D)/.build/host.config --arch "$(HOSTARCH)" \
         --set DEVICE_SERVER=$(if $(filter y,$(BR2_PACKAGE_HOST_EDK_SERVER)),y,n) \
         --set OTA_CLI=$(if $(filter y,$(BR2_PACKAGE_HOST_EDK_OTA_CLI)),y,n)
-    $(HOST_MAKE_ENV) $(HOST_DIR)/bin/cmake -S $(@D) -B $(@D)/.build/host \
+    $(HOST_MAKE_ENV) EDK_SOURCE_DIR="$(EDK_SITE)" $(HOST_DIR)/bin/cmake -S $(@D) -B $(@D)/.build/host \
         -DCONFIG_FILE=$(@D)/.build/host.config -DCMAKE_C_COMPILER="$(HOSTCC)" \
         -DCMAKE_PREFIX_PATH="$(HOST_DIR)" -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_C_FLAGS="$(filter-out -O% -g%,$(HOST_CFLAGS))" -DCMAKE_EXE_LINKER_FLAGS="$(HOST_LDFLAGS)"

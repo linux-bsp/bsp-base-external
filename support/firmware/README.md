@@ -100,3 +100,19 @@ python3 bsp-base-external/support/firmware/tests/test_image.py
 
 测试使用真实 mkimage/dtc 验证生成格式；ARMv7 描述和 64 位地址测试不代表对应硬件已完成板级验证。
 AM625 的启动、升级和恢复兼容性还需实际生成镜像测试及设备健康确认。
+
+## 可复现发布与来源清单
+
+AM625 启用 BR2_REPRODUCIBLE，时间输入统一使用 SOURCE_DATE_EPOCH；独立打包未提供时使用 0。
+FIT 自定义构建时间和 mkimage 时间戳使用同一值；verity salt 和 initramfs 压缩已固定。
+完整 kernel/rootfs 的 SHA256 算法保持不变，不通过排除数据来伪造一致的固件 ID。
+
+生成器先在同一文件系统的私有目录完成全部组件、验证与工厂镜像，再通过 Linux
+renameat2 交换完整 release 目录。失败保留上一次有效 OTA 包。images 顶层身份、
+配置、metadata 和 build-manifest.json 是 release 内文件的链接；工厂镜像不作为 OTA 发布入口。
+同一 images 目录由单个 Buildroot 构建任务使用。
+
+build-manifest.json 保存完整固件身份、各仓库提交与未提交改动摘要、配置 SHA256、
+EDK Host/Target 编译来源和工具版本。副本与源码补丁一并保存在每次验收目录中。
+当前可复现测试验证固定输入重复打包及同一构建目录重复生成的 OTA ITB；
+工厂 ext4/SD 镜像的 UUID 与跨机器全量工具链重建不属于该项已验证保证。

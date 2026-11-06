@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 FIRMWARE = Path(__file__).resolve().parents[1]
 WORKSPACE = FIRMWARE.parents[2]
@@ -55,6 +56,27 @@ class FirmwareImage(unittest.TestCase):
     def prop(self, name, key, kind='s', node='/configurations/conf-1'):
         return subprocess.check_output([str(HOST / 'bin/fdtget'), '-t', kind,
                                        str(self.images / 'release' / (name + '.itb')), node, key], text=True).strip()
+
+    def test_fixed_epoch_is_reproducible_and_failed_rebuild_preserves_bundle(self):
+        with mock.patch.dict(os.environ, {'SOURCE_DATE_EPOCH':'1793800000'}):
+            self.build()
+            original = {p.name:p.read_bytes() for p in (self.images/'release').glob('*.itb')}
+            identity = (self.images/'firmware-identity.json').read_bytes()
+            with mock.patch.object(builder.time, 'time', return_value=2000000000):
+                self.build()
+            self.assertEqual(original, {p.name:p.read_bytes() for p in (self.images/'release').glob('*.itb')})
+            self.assertEqual(identity, (self.images/'firmware-identity.json').read_bytes())
+            actual = builder.run
+            def fail(args, env):
+                if str(args[0]).endswith('/mkimage'):
+                    raise ValueError('injected FIT build failure')
+                return actual(args, env)
+            with mock.patch.object(builder, 'run', side_effect=fail):
+                with self.assertRaisesRegex(ValueError, 'injected'):
+                    self.build()
+            self.assertEqual(original, {p.name:p.read_bytes() for p in (self.images/'release').glob('*.itb')})
+            self.assertEqual(identity, (self.images/'firmware-identity.json').read_bytes())
+            self.assertTrue((self.images/'release/build-manifest.json').is_file())
 
     def test_board_configuration_has_one_version_and_explicit_inputs(self):
         config = configuration.load(BOARD / 'firmware.json')

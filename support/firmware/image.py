@@ -8,6 +8,9 @@ from pathlib import Path
 import shutil
 import subprocess
 import time
+import tempfile
+import ctypes
+from manifest import write as write_manifest
 
 from config import COMPONENTS, load
 from fit import component, release
@@ -29,7 +32,7 @@ def size_limit(path, settings):
         raise ValueError(f'{path.name} exceeds configured max_size')
 
 
-def build(config_path, images, host, target):
+def build_in_place(config_path, images, host, target):
     config = load(config_path)
     settings = config.data['components']
     files = {name: {image['name']: images / image['file'] for image in item['images']}
@@ -74,7 +77,10 @@ def build(config_path, images, host, target):
             destination.parent.mkdir(parents=True, exist_ok=True)
             run([host / 'bin/python3', SCRIPTS / 'build-initramfs.py',
                  '--target', target, '--board', config.board, '--host', host, '--output', destination], env)
-    minutes = int(time.time()) // 60
+    epoch = int(os.environ.get('SOURCE_DATE_EPOCH', '0'))
+    if epoch < 0: raise ValueError('SOURCE_DATE_EPOCH must be nonnegative')
+    env['SOURCE_DATE_EPOCH'] = str(epoch)
+    minutes = epoch // 60
     if not 0 <= minutes <= 0xffffffff: raise ValueError('build time exceeds FIT uint32')
     mkimage = host / 'bin/mkimage'
     for name in COMPONENTS:
@@ -91,6 +97,7 @@ def build(config_path, images, host, target):
     its.write_text(release(config, identity, hashes, minutes))
     run([mkimage, '-f', its, output / 'release.itb'], env)
     write_metadata(host, images, identity)
+    write_manifest(images, host, config_path, target, epoch)
     if 'factory' in config.data:
         factory = config.data['factory']
         if 'environment' in factory:
@@ -101,6 +108,54 @@ def build(config_path, images, host, target):
             env['FW_BOOTLOADER_' + name.upper().replace('-', '_') + '_IMAGE'] = str(path.relative_to(images))
         run(['support/scripts/genimage.sh', '-c', config.board / factory['layout']], env)
     print(f'Firmware: {identity["tag"]} / {identity["firmware_id"][:8]}')
+
+
+def exchange(candidate, destination):
+    if not destination.exists():
+        candidate.replace(destination)
+        return
+    libc = ctypes.CDLL(None, use_errno=True)
+    rename = libc.renameat2
+    rename.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+    if rename(-100, os.fsencode(candidate), -100, os.fsencode(destination), 2):
+        code = ctypes.get_errno()
+        raise OSError(code, os.strerror(code))
+
+
+def build(config_path, images, host, target):
+    config = load(config_path)
+    images.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix='.firmware-', dir=images.parent) as name:
+        staging = Path(name)
+        inputs = set()
+        for component in config.data['components'].values():
+            for image in component['images']:
+                if 'generate' not in image:
+                    relative = image['file']
+                    destination = staging/relative
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copyfile(images/relative, destination)
+                    inputs.add(relative)
+        build_in_place(config_path, staging, host, target)
+        # Sidecars live with their validated ITBs; top-level paths remain views.
+        sidecars = ['firmware.json','firmware-identity.json','layout-validation.json',
+                    'build-manifest.json','meta0.bin','meta1.bin']
+        for entry in sidecars:
+            if (staging/entry).exists():
+                shutil.move(staging/entry, staging/'release'/entry)
+        for path in sorted(staging.rglob('*')):
+            relative = path.relative_to(staging)
+            if path.is_file() and relative.parts[0] != 'release' and str(relative) not in inputs:
+                destination = images/relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                path.replace(destination)
+        exchange(staging/'release', images/'release')
+        for entry in sidecars:
+            if (images/'release'/entry).is_file():
+                link = images/('.'+entry+'.link')
+                link.unlink(missing_ok=True)
+                link.symlink_to('release/'+entry)
+                link.replace(images/entry)
 
 
 if __name__ == '__main__':
