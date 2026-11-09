@@ -176,13 +176,17 @@ int main(int argc,char **argv) {
                 '-I'+str(SOURCE/'user/apps/fwctl/core'),'-I'+str(SOURCE/'user/apps/fwctl/storage'),'-I'+str(SOURCE/'user/apps/fwctl/include'),'-I'+str(SOURCE/'user/lib/hwid/include'),'-I'+str(FDT),'-I'+str(HOST/'include'),str(source)] +
                 [str(SOURCE/'user/apps/fwctl'/('storage' if module.startswith('dm_fw_storage') else 'core')/module) for module in modules] + [str(FDT/'fdt.c'),str(FDT/'fdt_ro.c'),
                 '-L'+str(HOST/'lib'),'-Wl,-rpath,'+str(HOST/'lib'),'-lcrypto','-pthread','-o',str(binary)],check=True)
-            media=root/'media';config=root/'firmware.conf';span=32*1024*1024
+            raw=(IMAGES/'rootfs-verity.squashfs').read_bytes()
+            # Debug images can exceed the former fixed 32 MiB test region.
+            # Keep every artificial region aligned and non-overlapping.
+            alignment=1024*1024
+            span=max(32*alignment,((len(raw)+alignment-1)//alignment)*alignment)
+            media=root/'media';config=root/'firmware.conf'
             regions=['meta0','meta1','tiboot3_a','tiboot3_b','tispl_a','tispl_b','uboot_a','uboot_b','kernel_a','kernel_b','rootfs_a','rootfs_b']
             with media.open('wb') as f:
                 f.truncate(len(regions)*span);f.seek(regions.index('rootfs_b')*span);f.write(b'KEEP_OTHER_SLOT')
             config.write_text(f'device={media}\nhwid-config=test-hwid\n'+
                 ''.join(f'{name}-offset={i*span}\n{name}-size={span}\n' for i,name in enumerate(regions)))
-            raw=(IMAGES/'rootfs-verity.squashfs').read_bytes()
             subprocess.run([str(binary),str(config),str(IMAGES/'release/rootfs.itb'),str(len(raw)),hashlib.sha256(raw).hexdigest()],check=True)
             with media.open('rb') as f:
                 f.seek(regions.index('rootfs_a')*span);self.assertEqual(f.read(len(raw)),raw)
