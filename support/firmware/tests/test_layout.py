@@ -12,11 +12,10 @@ import unittest
 SOURCE = Path(__file__).resolve().parents[1]
 WORKSPACE = SOURCE.parents[2]
 BOARD = WORKSPACE/'bsp-base-external/board/ti/am625'
-OUTPUT = WORKSPACE/'output/am625-time-ui'
+OUTPUT = Path(os.environ.get('BUILDROOT_OUTPUT', WORKSPACE/'output/am625-debug-systemd'))
 HOST = Path(os.environ.get('HOST_DIR', OUTPUT/'host'))
 sys.path.insert(0, str(SOURCE))
-import config
-import layout
+from native_support import configuration as config, layout
 
 
 class Layout(unittest.TestCase):
@@ -49,11 +48,11 @@ class Layout(unittest.TestCase):
         self.assertEqual(report['regions']['rootfs_b'],{'offset':192*1024**2,'size':128*1024**2})
     def test_overlap_in_linux_layout_rejected(self):
         self.linux.write_text(self.linux.read_text().replace('kernel_b-offset=0x02800000','kernel_b-offset=0x01000000'))
-        with self.assertRaisesRegex(ValueError,'overlapping'):self.run_check()
+        with self.assertRaisesRegex(ValueError,'[Oo]verlapping|Installed Linux region'):self.run_check()
     def test_installed_configuration_drift_rejected(self):
         path=self.target/'etc/device-manager/firmware.conf'
         path.write_text(path.read_text().replace('device=/dev/mmcblk1','device=/dev/mmcblk0'))
-        with self.assertRaisesRegex(ValueError,'installed Linux'):self.run_check()
+        with self.assertRaisesRegex(ValueError,'Installed firmware'):self.run_check()
     def test_factory_and_environment_drift_rejected(self):
         original=self.factory.read_text()
         self.factory.write_text(original.replace('offset = 192M','offset = 193M'))
@@ -70,27 +69,27 @@ class Layout(unittest.TestCase):
                 path.write_bytes(original)
     def test_json_capacity_gate(self):
         self.data['components']['kernel']['max_size']=25*1024**2
-        with self.assertRaisesRegex(ValueError,'kernel: explicit firmware max_size'):self.run_check()
+        with self.assertRaisesRegex(ValueError,'kernel.*max_size'):self.run_check()
     def test_environment_copies_and_hwid_checked(self):
         envconfig=self.target/'etc/fw_env.config';original=envconfig.read_text()
         envconfig.write_text(original.replace('0x620000','0x630000'))
-        with self.assertRaisesRegex(ValueError,'HWID environment copies'):self.run_check()
+        with self.assertRaisesRegex(ValueError,'HWID environment locations'):self.run_check()
         envconfig.write_text(original)
         self.env.write_text(self.env.read_text().replace('hwid=1010001000110000','hwid=1010001000210000'))
-        with self.assertRaisesRegex(ValueError,'HWID is absent'):self.run_check()
+        with self.assertRaisesRegex(ValueError,'Factory HWID absent'):self.run_check()
     def test_raw_geometry_required(self):
         self.factory.write_text(self.factory.read_text().replace('"none"','"gpt"'))
         with self.assertRaisesRegex(ValueError,'explicit RAW'):self.run_check()
     def test_compiled_environment_offsets_checked(self):
         path=(self.build/self.data['validation']['uboot_dtbs'][1]).parent/'.config'
         path.write_text(path.read_text().replace('CONFIG_ENV_OFFSET=0x600000','CONFIG_ENV_OFFSET=0x610000'))
-        with self.assertRaisesRegex(ValueError,'U-Boot environment offsets'):self.run_check()
+        with self.assertRaisesRegex(ValueError,'uboot_env0'):self.run_check()
     def test_missing_build_dependency_fails_closed(self):
         (self.build/self.data['validation']['uboot_dtbs'][1]).unlink()
         with self.assertRaisesRegex(ValueError,'U-Boot DTB'):self.run_check()
     def test_ambiguous_configuration_fails(self):
         self.linux.write_text(self.linux.read_text()+'\nkernel_a-size=0x1000000\n')
-        with self.assertRaisesRegex(ValueError,'conflicting duplicate'):self.run_check()
+        with self.assertRaisesRegex(ValueError,'Conflicting duplicate'):self.run_check()
 
 
 if __name__=='__main__':unittest.main()

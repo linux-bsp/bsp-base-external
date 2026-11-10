@@ -1,0 +1,5 @@
+config BR2_PACKAGE_HOST_FW_TOOLS
+    bool "native firmware image tools"
+    help
+      Host C tools and jq used by the BSP post-image hooks. Nothing from
+      this package is installed on the target or used by Device Manager.

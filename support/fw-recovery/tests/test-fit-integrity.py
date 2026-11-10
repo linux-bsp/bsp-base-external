@@ -105,8 +105,9 @@ int main(int argc, char **argv) {
             self.assertNotEqual(subprocess.run([str(binary),str(missing)]).returncode,0)
 
     def test_inline_dtb_alignment_is_repeatable(self):
-        spec=importlib.util.spec_from_file_location('identity_generator',WORKSPACE/'bsp-base-external/support/firmware/identity.py')
-        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        def align(fit,dtb):
+            subprocess.run(['bash',str(WORKSPACE/'bsp-base-external/support/scripts/align-fit.sh'),str(fit),str(dtb)],
+                           env=dict(os.environ,HOST_DIR=str(HOST)),check=True)
         dtb=next(IMAGES.glob('verity-*.dtb'))
         data=dtb.read_bytes()
         with tempfile.TemporaryDirectory(prefix='fit-alignment-') as name:
@@ -116,10 +117,10 @@ int main(int argc, char **argv) {
                 if index:subprocess.run([str(HOST/'bin/fdtput'),'-t','x',str(fit),'/', 'test-padding'],check=True)
                 before=fit.read_bytes().find(data)
                 self.assertIn(before%8,(0,4))
-                module.align_kernel_dtb(HOST,fit,dtb)
+                align(fit,dtb)
                 self.assertEqual(fit.read_bytes().find(data)%8,0)
                 aligned=fit.read_bytes()
-                module.align_kernel_dtb(HOST,fit,dtb)
+                align(fit,dtb)
                 self.assertEqual(fit.read_bytes(),aligned)
 
     def test_real_rootfs_fit_repair_on_regular_file(self):

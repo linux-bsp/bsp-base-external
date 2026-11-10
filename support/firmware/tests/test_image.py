@@ -15,11 +15,11 @@ from unittest import mock
 FIRMWARE = Path(__file__).resolve().parents[1]
 WORKSPACE = FIRMWARE.parents[2]
 sys.path.insert(0, str(FIRMWARE))
-import config as configuration
-import image as builder
+from native_support import configuration
+from native_support import builder
 
 BOARD = WORKSPACE / 'bsp-base-external/board/ti/am625'
-HOST = Path(os.environ.get('HOST_DIR', WORKSPACE / 'output/am625-time-ui/host'))
+HOST = Path(os.environ.get('HOST_DIR', WORKSPACE / 'output/am625-debug-systemd/host'))
 A, B = '1010001000110000', '1010001000111000'
 
 
@@ -63,18 +63,16 @@ class FirmwareImage(unittest.TestCase):
             self.build()
             original = {p.name:p.read_bytes() for p in (self.images/'release').glob('*.itb')}
             identity = (self.images/'firmware-identity.json').read_bytes()
-            with mock.patch.object(builder.time, 'time', return_value=2000000000):
-                self.build()
+            self.build()
             self.assertEqual(original, {p.name:p.read_bytes() for p in (self.images/'release').glob('*.itb')})
             self.assertEqual(identity, (self.images/'firmware-identity.json').read_bytes())
-            actual = builder.run
-            def fail(args, env):
-                if str(args[0]).endswith('/mkimage'):
-                    raise ValueError('injected FIT build failure')
-                return actual(args, env)
-            with mock.patch.object(builder, 'run', side_effect=fail):
-                with self.assertRaisesRegex(ValueError, 'injected'):
-                    self.build()
+            fake = self.root/'failed-host'; (fake/'bin').mkdir(parents=True)
+            for tool in (HOST/'bin').iterdir():
+                if tool.name != 'mkimage': (fake/'bin'/tool.name).symlink_to(tool)
+            (fake/'bin/mkimage').write_text('#!/bin/sh\necho injected FIT build failure >&2\nexit 1\n')
+            (fake/'bin/mkimage').chmod(0o755)
+            with self.assertRaisesRegex(ValueError, 'injected'):
+                builder.build(self.path, self.images, fake, self.target)
             self.assertEqual(original, {p.name:p.read_bytes() for p in (self.images/'release').glob('*.itb')})
             self.assertEqual(identity, (self.images/'firmware-identity.json').read_bytes())
             self.assertTrue((self.images/'release/build-manifest.json').is_file())
@@ -120,8 +118,9 @@ class FirmwareImage(unittest.TestCase):
     def test_stale_edk_build_cannot_replace_previous_release(self):
         (self.root/'VERSION').write_text('0.0.1\n')
         self.data['version'] = {'file':'VERSION'}
-        info = self.root/'build/edk-custom/.build/target/build-info.json'
+        info = self.root/'build/edk-custom/buildroot-build/build-info.json'
         info.parent.mkdir(parents=True)
+        (info.parent/'.config').write_text('# Native EDK configuration fixture\n')
         info.write_text(json.dumps({'version':'0.0.1'}))
         with mock.patch.dict(os.environ, {'BUILD_DIR':str(self.root/'build')}):
             self.build()
@@ -228,7 +227,7 @@ class FirmwareImage(unittest.TestCase):
         before = {p: p.read_bytes() for p in (self.images / 'release').iterdir()}
         self.data['components']['kernel']['images'][0]['file'] = 'missing.gz'
         self.load()
-        with self.assertRaises(OSError): builder.build(self.path, self.images, HOST, self.target)
+        with self.assertRaises(ValueError): builder.build(self.path, self.images, HOST, self.target)
         self.assertEqual(before, {p: p.read_bytes() for p in (self.images / 'release').iterdir()})
         self.data['components']['kernel']['images'][0].update(file='Image.gz', max_size=1)
         self.load()

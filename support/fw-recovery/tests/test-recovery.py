@@ -16,7 +16,7 @@ WORKSPACE=EXTERNAL.parent
 SOURCE=WORKSPACE/"edk"
 HOST=Path(os.environ.get('HOST_DIR',WORKSPACE/'output/am625/host'))
 TARGET=Path(os.environ.get('TARGET_DIR',WORKSPACE/'output/am625/target'))
-BUILDER=EXTERNAL/'support/scripts/build-initramfs.py'
+BUILDER=EXTERNAL/'support/scripts/build-initramfs.sh'
 BOARD=EXTERNAL/'board/ti/am625'
 
 
@@ -34,6 +34,10 @@ def cpio_entries(path):
         assert len(data)==size
         if name=='TRAILER!!!':break
         assert name not in entries and not name.startswith('/') and '..' not in Path(name).parts
+        # Linux gen_init_cpio includes the symlink target's terminating NUL;
+        # compare link semantics, while keeping regular-file payloads exact.
+        if stat.S_ISLNK(values[1]) and data.endswith(b'\0'):
+            data=data[:-1]
         entries[name]=(values,data)
         offset=(offset+size+3)&~3
     return entries
@@ -132,8 +136,9 @@ int main(int argc, char **argv) {
     def test_real_initramfs_dependency_closure_and_determinism(self):
         one=self.dir/'one.cpio.gz';two=self.dir/'two.cpio.gz'
         for output in (one,two):
-            subprocess.run(['python3',str(BUILDER),'--target',str(TARGET),'--board',str(BOARD),
-                '--host',str(HOST),'--output',str(output)],check=True,stdout=subprocess.DEVNULL)
+            subprocess.run(['bash',str(BUILDER),'--target',str(TARGET),'--board',str(BOARD),
+                '--host',str(HOST),'--output',str(output)],check=True,stdout=subprocess.DEVNULL,
+                env=dict(os.environ,BUILD_DIR=str(TARGET.parent/'build')))
         self.assertEqual(one.read_bytes(),two.read_bytes())
         entries=cpio_entries(one)
         for name in ('init','usr/sbin/fwctl','bin/busybox',

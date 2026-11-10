@@ -57,7 +57,8 @@ python3 bsp-base-external/support/firmware/tests/test_layout.py
 ```
 
 内核 ramdisk 镜像设置 `name: "initramfs"`、`file: "initramfs.cpio.gz"` 和
-`generate: "initramfs"`，由 `../scripts/build-initramfs.py` 收集现有工具和 ELF 依赖生成。
+`generate: "initramfs"`，由 `../scripts/build-initramfs.sh` 收集现有工具和完整 ELF 依赖，
+使用本次 Linux 构建的 `usr/gen_init_cpio` 生成。设备节点由归档描述创建，不要求主机 root。
 FIT 配置通过 `ramdisk: "initramfs"` 引用该镜像；它随 kernel FIT 存放，无独立物理分区。
 其中 `/init` 脚本调用 `fwctl init`，负责正常启动的 Rootfs 校验、切换根文件系统和异常恢复。
 rootfs 可设置 `verity: true`，此时要求内核有 fdt、ramdisk 引用；生成器保留原 DTB，
@@ -91,11 +92,18 @@ BR2_ROOTFS_POST_IMAGE_SCRIPT_ARGS="-c $(BR2_EXTERNAL_LINUX_BSP_PATH)/board/ti/am
 
 ## 模块与验证
 
-- `config.py`：JSON 校验、字段默认值和引用关系。
-- `fit.py`：生成标准 FIT/DTS 文本。
-- `identity.py`：DTB 对齐、内容 ID 及启动元数据。
-- `image.py`：组织依赖顺序，调用 mkimage、verity、initramfs 和工厂镜像工具。
-- `../scripts/firmware-image.sh`：Buildroot 的薄入口。
+- `config.jq`：JSON 校验、字段默认值和引用关系；不依赖 jq 的可选正则扩展。
+- `fit.jq`：生成标准 FIT/DTS 文本。
+- `layout.cmake`、`manifest.cmake`：独立布局检查和来源清单。
+- `../scripts/firmware-image.sh`：原生 post-image 任务，组织 mkimage、verity、initramfs 和 genimage。
+- `../scripts/align-fit.sh`：内嵌 DTB 对齐。
+- `../fw-tools/fw-build-tool.c`：严格 JSON 检查、启动元数据和原子目录交换；由
+  `BR2_PACKAGE_HOST_FW_TOOLS` 对应的 Buildroot host 包构建、安装。
+
+主机依赖通过 Buildroot 包声明，EDK 使用 `cmake-package`、`host-cmake-package` 和
+`kernel-module`。配置只走标准 defconfig/menuconfig/savedefconfig，不增加 Python 构建入口。
+设备和 Device Manager 均为 C 程序；下面的 Python 仅用于开发主机回归测试。
+上游 binman 等自身的主机 Python 依赖仍由 Buildroot 管理。
 
 从 workspace 执行测试：
 

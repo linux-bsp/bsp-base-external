@@ -3,18 +3,18 @@ EDK_SITE = $(BR2_EXTERNAL_LINUX_BSP_PATH)/../edk
 EDK_VERSION = $(strip $(shell cat "$(EDK_SITE)/VERSION"))
 EDK_SITE_METHOD = local
 EDK_LICENSE = Proprietary, GPL-2.0+
-EDK_DEPENDENCIES = host-python3 host-pkgconf host-cmake host-flex host-bison
+EDK_DEPENDENCIES = host-pkgconf host-flex host-bison host-cmake
 EDK_INSTALL_STAGING = YES
-EDK_BUILD_OUTPUT = $(@D)/.build/target
-EDK_MODULES_OUTPUT = $(EDK_BUILD_OUTPUT)/modules
-EDK_MODULE_EXTRA_DIR = extra/pdm
+EDK_SUPPORTS_IN_SOURCE_BUILD = NO
 EDK_OVERRIDE_SRCDIR_RSYNC_EXCLUSIONS = --exclude='.build' --exclude='build' \
     --exclude='__pycache__' --exclude='*.o' --exclude='*.a' --exclude='*.ko' \
     --exclude='*.mod' --exclude='*.mod.c' --exclude='.*.cmd' \
     --exclude='Module.symvers' --exclude='modules.order' --exclude='.tmp_versions'
-ifeq ($(BR2_PACKAGE_EDK_PDM),y)
-EDK_DEPENDENCIES += linux
-endif
+EDK_CONF_OPTS = -DCONFIG_FILE=$(@D)/buildroot.config \
+    -DEDK_SOURCE_DIR=$(EDK_SITE) \
+    -DCMAKE_BUILD_TYPE=$(call qstrip,$(BR2_PACKAGE_EDK_BUILD_TYPE))
+EDK_CONF_ENV = HOSTCC="$(HOSTCC)"
+
 ifeq ($(BR2_PACKAGE_EDK_WEB),y)
 EDK_DEPENDENCIES += cjson lighttpd
 endif
@@ -30,46 +30,32 @@ endif
 ifeq ($(BR2_PACKAGE_EDK_TIMECTL),y)
 EDK_DEPENDENCIES += libcurl openssl
 endif
-EDK_SOURCE_ID = $(shell git -C "$(EDK_SITE)" rev-parse HEAD 2>/dev/null || echo archive)
-EDK_MAKE_OPTS = JOBS="$(PARALLEL_JOBS)" EDK_SOURCE_DIR="$(EDK_SITE)" EDK_SOURCE_REVISION="$(EDK_SOURCE_ID)" BUILD_DIR="$(EDK_BUILD_OUTPUT)" \
-    PYTHON3="$(HOST_DIR)/bin/python3" HOSTCC="$(HOSTCC)" \
-    MODULES_BUILD_DIR="$(EDK_MODULES_OUTPUT)" KERNEL_SRC="$(LINUX_DIR)" \
-    ARCH="$(KERNEL_ARCH)" CROSS_COMPILE="$(TARGET_CROSS)" CC="$(TARGET_CC)" \
-    CMAKE_BUILD_TYPE="$(call qstrip,$(BR2_PACKAGE_EDK_BUILD_TYPE))" \
-    CMAKE_TOOLCHAIN_FILE="$(HOST_DIR)/share/buildroot/toolchainfile.cmake" \
-    CMAKE_EXTRA_FLAGS='-DCONFIG_FILE="$(EDK_BUILD_OUTPUT).config" -DCMAKE_C_FLAGS="$(filter-out -O% -g%,$(TARGET_CFLAGS))" -DCMAKE_EXE_LINKER_FLAGS="$(TARGET_LDFLAGS)"' \
-    CMAKE_INSTALL_PREFIX="/usr"
 
-define EDK_CONFIGURE_CMDS
-    $(HOST_DIR)/bin/python3 $(@D)/scripts/buildroot_config.py \
-        --preset $(@D)/configs/$(call qstrip,$(BR2_PACKAGE_EDK_DEFCONFIG)) \
-        --output $(EDK_BUILD_OUTPUT).config --arch "$(KERNEL_ARCH)" \
-        --set PDM=$(if $(filter y,$(BR2_PACKAGE_EDK_PDM)),m,n) \
-        --set PDEBUG_WEB=$(if $(filter y,$(BR2_PACKAGE_EDK_WEB)),y,n) \
-        --set FWCTL=$(if $(filter y,$(BR2_PACKAGE_EDK_FWCTL)),y,n) \
-        --set FWCTLD=$(if $(filter y,$(BR2_PACKAGE_EDK_FWCTLD)),y,n) \
-        --set LOGCTL=$(if $(filter y,$(BR2_PACKAGE_EDK_LOGCTL)),y,n) \
-        --set TIMECTL=$(if $(filter y,$(BR2_PACKAGE_EDK_TIMECTL)),y,n) \
-        --set DMSERVER=n --set DMCLI=n --set MANAGEMENT_TESTS=n --set TRANSFER_TESTS=n
-    $(TARGET_MAKE_ENV) $(MAKE) -C $(@D) $(EDK_MAKE_OPTS) configure
-    $(HOST_DIR)/bin/python3 $(@D)/scripts/check_buildroot.py --build-dir $(EDK_BUILD_OUTPUT) --web "$(BR2_PACKAGE_EDK_WEB)"
+# Buildroot owns component selection; Kconfig normalizes this native seed.
+define EDK_CONFIGURE_SELECTION
+    $(INSTALL) -D -m 0644 $(@D)/configs/$(call qstrip,$(BR2_PACKAGE_EDK_DEFCONFIG)) $(@D)/buildroot.config
+    $(call KCONFIG_SET_OPT,CONFIG_ARCH,"$(KERNEL_ARCH)",$(@D)/buildroot.config)
+    $(call KCONFIG_SET_OPT,CONFIG_PDM,$(if $(filter y,$(BR2_PACKAGE_EDK_PDM)),m,n),$(@D)/buildroot.config)
+    $(call KCONFIG_SET_OPT,CONFIG_PDEBUG_WEB,$(if $(filter y,$(BR2_PACKAGE_EDK_WEB)),y,n),$(@D)/buildroot.config)
+    $(call KCONFIG_SET_OPT,CONFIG_FWCTL,$(if $(filter y,$(BR2_PACKAGE_EDK_FWCTL)),y,n),$(@D)/buildroot.config)
+    $(call KCONFIG_SET_OPT,CONFIG_FWCTLD,$(if $(filter y,$(BR2_PACKAGE_EDK_FWCTLD)),y,n),$(@D)/buildroot.config)
+    $(call KCONFIG_SET_OPT,CONFIG_LOGCTL,$(if $(filter y,$(BR2_PACKAGE_EDK_LOGCTL)),y,n),$(@D)/buildroot.config)
+    $(call KCONFIG_SET_OPT,CONFIG_TIMECTL,$(if $(filter y,$(BR2_PACKAGE_EDK_TIMECTL)),y,n),$(@D)/buildroot.config)
+    $(foreach option,DMSERVER DMCLI MANAGEMENT_TESTS TRANSFER_TESTS,$(call KCONFIG_DISABLE_OPT,CONFIG_$(option),$(@D)/buildroot.config)$(sep))
 endef
+EDK_PRE_CONFIGURE_HOOKS += EDK_CONFIGURE_SELECTION
 
-define EDK_BUILD_CMDS
-    $(TARGET_MAKE_ENV) $(MAKE) -C $(@D) $(EDK_MAKE_OPTS) all
+EDK_INSTALL_STAGING_OPTS = --component libraries
+define EDK_INSTALL_HEADERS
+    $(if $(filter y,$(BR2_PACKAGE_EDK_INSTALL_HEADERS)),DESTDIR=$(STAGING_DIR) $(BR2_CMAKE) --install $(EDK_BUILDDIR) --component headers)
 endef
+EDK_POST_INSTALL_STAGING_HOOKS += EDK_INSTALL_HEADERS
 
-define EDK_INSTALL_TARGET_CMDS
-    $(TARGET_MAKE_ENV) $(MAKE) -C $(@D) $(EDK_MAKE_OPTS) install DESTDIR=$(TARGET_DIR)
-    $(if $(filter y,$(BR2_PACKAGE_EDK_PDM)),$(INSTALL) -D -m 0644 $(EDK_MODULES_OUTPUT)/pdm.ko $(TARGET_DIR)/lib/modules/$(LINUX_VERSION_PROBED)/$(EDK_MODULE_EXTRA_DIR)/pdm.ko)
+define EDK_INSTALL_DEFAULTS
     $(if $(filter y,$(BR2_PACKAGE_EDK_FWCTLD)),$(INSTALL) -D -m 0644 $(EDK_PKGDIR)/fwctld.default $(TARGET_DIR)/etc/default/fwctld)
     $(if $(filter y,$(BR2_PACKAGE_EDK_LOGCTL)),$(INSTALL) -d $(TARGET_DIR)/data)
 endef
-
-define EDK_INSTALL_STAGING_CMDS
-    DESTDIR=$(STAGING_DIR) $(HOST_DIR)/bin/cmake --install $(EDK_BUILD_OUTPUT) --prefix /usr --component libraries
-    $(if $(filter y,$(BR2_PACKAGE_EDK_INSTALL_HEADERS)),$(MAKE) -C $(@D) $(EDK_MAKE_OPTS) install_headers DESTDIR=$(STAGING_DIR))
-endef
+EDK_POST_INSTALL_TARGET_HOOKS += EDK_INSTALL_DEFAULTS
 
 define EDK_INSTALL_INIT_SYSV
 	$(if $(filter y,$(BR2_PACKAGE_EDK_FWCTLD)),$(INSTALL) -D -m 0755 $(EDK_PKGDIR)/S98fwctld $(TARGET_DIR)/etc/init.d/S98fwctld)
@@ -77,42 +63,45 @@ define EDK_INSTALL_INIT_SYSV
 	$(if $(filter y,$(BR2_PACKAGE_EDK_TIMECTL)),$(INSTALL) -D -m 0755 $(EDK_PKGDIR)/S02timectld $(TARGET_DIR)/etc/init.d/S02timectld)
 endef
 
-# Native systemd units run daemons in the foreground; no second supervisor.
 define EDK_INSTALL_INIT_SYSTEMD
-    DESTDIR=$(TARGET_DIR) $(HOST_DIR)/bin/cmake --install $(EDK_BUILD_OUTPUT) --prefix /usr --component services
+    DESTDIR=$(TARGET_DIR) $(BR2_CMAKE) --install $(EDK_BUILDDIR) --component services
 endef
 
+ifeq ($(BR2_PACKAGE_EDK_PDM),y)
+define EDK_KERNEL_METADATA
+    $(HOST_DIR)/bin/cmake -DBUILD_DIR=$(EDK_BUILDDIR) -DCOMPILER=$(TARGET_CC) \
+        -DSOURCE_DIR=$(EDK_SITE) -DARCH=$(KERNEL_ARCH) \
+        -DKERNEL=$(LINUX_VERSION_PROBED) -P $(@D)/scripts/cmake/build_info.cmake
+endef
+EDK_POST_BUILD_HOOKS += EDK_KERNEL_METADATA
+EDK_MODULE_SUBDIRS = kernel
+EDK_MODULE_MAKE_OPTS = PDM_BUILD_DIR=$(EDK_BUILDDIR) MO=$(EDK_BUILDDIR)/modules INSTALL_MOD_DIR=extra/pdm
+$(eval $(kernel-module))
+endif
 
 HOST_EDK_VERSION = $(EDK_VERSION)
 HOST_EDK_SITE = $(EDK_SITE)
 HOST_EDK_SITE_METHOD = local
+HOST_EDK_SUPPORTS_IN_SOURCE_BUILD = NO
 HOST_EDK_OVERRIDE_SRCDIR_RSYNC_EXCLUSIONS = $(EDK_OVERRIDE_SRCDIR_RSYNC_EXCLUSIONS)
-HOST_EDK_DEPENDENCIES = host-cmake host-python3 host-flex host-bison host-pkgconf
+HOST_EDK_DEPENDENCIES = host-flex host-bison host-pkgconf host-cmake
 ifeq ($(BR2_PACKAGE_HOST_EDK_DMSERVER),y)
 HOST_EDK_DEPENDENCIES += host-sqlite host-zlib host-uboot-tools host-openssl
 endif
 ifeq ($(BR2_PACKAGE_HOST_EDK_DMCLI),y)
 HOST_EDK_DEPENDENCIES += host-libcurl host-openssl
 endif
+HOST_EDK_CONF_OPTS = -DCONFIG_FILE=$(@D)/buildroot.config -DEDK_SOURCE_DIR=$(EDK_SITE)
+HOST_EDK_CONF_ENV = HOSTCC="$(HOSTCC)"
+HOST_EDK_INSTALL_OPTS = --component host-tools
 
-define HOST_EDK_CONFIGURE_CMDS
-    $(HOST_DIR)/bin/python3 $(@D)/scripts/buildroot_config.py \
-        --preset $(@D)/configs/management_base_defconfig --output $(@D)/.build/host.config --arch "$(HOSTARCH)" \
-        --set DMSERVER=$(if $(filter y,$(BR2_PACKAGE_HOST_EDK_DMSERVER)),y,n) \
-        --set DMCLI=$(if $(filter y,$(BR2_PACKAGE_HOST_EDK_DMCLI)),y,n)
-    $(HOST_MAKE_ENV) EDK_SOURCE_DIR="$(EDK_SITE)" $(HOST_DIR)/bin/cmake -S $(@D) -B $(@D)/.build/host \
-        -DCONFIG_FILE=$(@D)/.build/host.config -DCMAKE_C_COMPILER="$(HOSTCC)" \
-        -DCMAKE_PREFIX_PATH="$(HOST_DIR)" -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_C_FLAGS="$(filter-out -O% -g%,$(HOST_CFLAGS))" -DCMAKE_EXE_LINKER_FLAGS="$(HOST_LDFLAGS)"
+define HOST_EDK_CONFIGURE_SELECTION
+    $(INSTALL) -D -m 0644 $(@D)/configs/management_base_defconfig $(@D)/buildroot.config
+    $(call KCONFIG_SET_OPT,CONFIG_ARCH,"$(HOSTARCH)",$(@D)/buildroot.config)
+    $(call KCONFIG_SET_OPT,CONFIG_DMSERVER,$(if $(filter y,$(BR2_PACKAGE_HOST_EDK_DMSERVER)),y,n),$(@D)/buildroot.config)
+    $(call KCONFIG_SET_OPT,CONFIG_DMCLI,$(if $(filter y,$(BR2_PACKAGE_HOST_EDK_DMCLI)),y,n),$(@D)/buildroot.config)
 endef
+HOST_EDK_PRE_CONFIGURE_HOOKS += HOST_EDK_CONFIGURE_SELECTION
 
-define HOST_EDK_BUILD_CMDS
-    $(HOST_MAKE_ENV) $(HOST_DIR)/bin/cmake --build $(@D)/.build/host --parallel $(PARALLEL_JOBS)
-endef
-
-define HOST_EDK_INSTALL_CMDS
-    $(HOST_MAKE_ENV) $(HOST_DIR)/bin/cmake --install $(@D)/.build/host --prefix $(HOST_DIR) --component host-tools
-endef
-
-$(eval $(generic-package))
-$(eval $(host-generic-package))
+$(eval $(cmake-package))
+$(eval $(host-cmake-package))

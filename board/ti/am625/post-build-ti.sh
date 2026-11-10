@@ -35,6 +35,13 @@ cp $BUILD_DIR/ti-k3-boot-firmware-*/ti-connectivity/* $TARGET_DIR/lib/firmware/t
 
 ln -snf /run/dropbear "$TARGET_DIR/etc/dropbear"
 
+# Optional upstream Python frontends are not part of this native-only target.
+# Keep the C/C++ GDB and Valgrind tools; omit their unconfigured Python helpers.
+rm -f "$TARGET_DIR"/usr/lib/libstdc++.so.*-gdb.py \
+    "$TARGET_DIR/usr/libexec/valgrind/valgrind-monitor.py" \
+    "$TARGET_DIR/usr/libexec/valgrind/valgrind-monitor-def.py" \
+    "$TARGET_DIR/usr/bin/valgrind-monitor"
+
 # The initramfs and rootfs maintenance tool use the same board recovery settings.
 board_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd) || exit 1
 install -D -m 0644 "$board_dir/recovery.conf" \
@@ -74,5 +81,5 @@ for init_script in "$TARGET_DIR"/etc/init.d/* \
 done
 
 # Validate actual installed service entry points, including target-root symlinks.
-"$HOST_DIR/bin/python3" "$board_dir/../../../../edk/scripts/check_install.py" \
-    --root "$TARGET_DIR" --elf || exit 1
+"$HOST_DIR/bin/cmake" -DROOTFS="$TARGET_DIR" \
+    -P "$board_dir/../../../../edk/scripts/cmake/check_install.cmake" || exit 1
