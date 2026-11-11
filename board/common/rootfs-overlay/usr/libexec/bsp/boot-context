@@ -1,0 +1,13 @@
+#!/bin/sh
+# Machine interface: an external boot is never the saved local A/B deployment.
+set -eu
+if grep -qw 'bsp.netboot=1' "${BSP_CMDLINE:-/proc/cmdline}"; then
+    record=${BSP_NETBOOT_INFO:-/etc/bsp/netboot.conf}
+    read -r format version build extra < "$record"
+    [ "$format" = BSPNET1 ] && [ -z "${extra:-}" ] && [ "${#build}" = 64 ]
+    case "$version" in ''|*[!0-9]*) exit 1 ;; esac
+    case "$build" in *[!0-9a-f]*) exit 1 ;; esac
+    printf '%s %s %s\n' "$format" "$version" "$build"
+else
+    exec fwctl ota-status
+fi

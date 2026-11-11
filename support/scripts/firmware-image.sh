@@ -152,4 +152,12 @@ for name in "${sidecars[@]}"; do
     ln -s "release/$name" "$images/.$name.link"
     mv -Tf "$images/.$name.link" "$images/$name"
 done
+if [[ -f $TARGET_DIR/etc/bsp/netboot.conf ]]; then
+    declaration="$images/firmware.json"
+    kernel_name=$(get '.components.kernel.kernel')
+    kernel_file=$(get ".components.kernel.images[]|select(.name==\"$kernel_name\")|.file")
+    dtb_file=$(get ".components.kernel.images[]|select(.name==\"$fdt_name\")|.file")
+    compression=$(get ".components.kernel.images[]|select(.name==\"$kernel_name\")|.compression // \"none\"")
+    "$scripts/export-netboot.sh" "$images" "$kernel_file" "$dtb_file" "$compression"
+fi
 printf 'Firmware: v%s / %.8s\n' "$version" "$identity"

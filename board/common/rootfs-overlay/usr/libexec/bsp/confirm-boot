@@ -1,0 +1,30 @@
+#!/bin/sh
+set -eu
+if ! grep -qw 'bsp.netboot=1' /proc/cmdline; then
+    exec /usr/libexec/device-manager/fw-confirm
+fi
+
+# Observe the common BSP and optional product units without writing A/B metadata.
+read -r format version build extra <<EOF
+$(/usr/libexec/bsp/boot-context)
+EOF
+[ "$format" = BSPNET1 ]
+count=0
+while [ "$count" -lt 6 ]; do
+    sleep 5
+    [ "$(cat /run/device-manager/storage-state)" = persistent ]
+    for policy in /etc/bsp/netboot-health.conf /etc/bsp/netboot-health.d/*.conf; do
+        [ -f "$policy" ] || continue
+        while IFS= read -r unit || [ -n "$unit" ]; do
+            case "$unit" in ''|'#'*) continue ;; esac
+            systemctl is-active --quiet "$unit"
+        done < "$policy"
+    done
+    count=$((count + 1))
+done
+mkdir -p /data/bsp
+printf '%s\n' "$build" > /data/bsp/netboot-confirmed.new
+mv /data/bsp/netboot-confirmed.new /data/bsp/netboot-confirmed
+printf '%s\n' netboot > /run/fwctl-boot-confirmed
+logctl boot-event health-confirmed
+echo "[bsp] [INFO] Network boot ready; reference build=$(printf '%.8s' "$build"); local A/B metadata unchanged"

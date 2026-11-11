@@ -83,3 +83,7 @@ done
 # Validate actual installed service entry points, including target-root symlinks.
 "$HOST_DIR/bin/cmake" -DROOTFS="$TARGET_DIR" \
     -P "$board_dir/../../../../edk/scripts/cmake/check_install.cmake" || exit 1
+
+"$board_dir/../../../support/scripts/netboot-build.sh" "$TARGET_DIR" \
+    "$BINARIES_DIR/Image.gz" "$BINARIES_DIR/$dtb_file" \
+    "$board_dir/../../../../edk/VERSION" || exit 1
