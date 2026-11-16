@@ -1,0 +1,61 @@
+From: guohao <guohaoprc@163.com>
+Subject: [PATCH] gen-lock-obj: parse hexadecimal sizes with portable awk
+
+POSIX awk does not require numeric conversion of hexadecimal strings.
+On a host whose mawk returns zero for int("0x30"), the generated AArch64
+public mutex storage has size zero although pthread_mutex_t needs 48 bytes.
+libgpg-error then aborts at runtime with "sizeof lock obj"; libgcrypt and
+FreeIPMI consumers are affected too.
+
+Convert each hex digit explicitly and reject missing or zero sizes, without
+requiring GNU awk or hard-coding a target mutex size.
+
+Upstream: Not submitted
+Signed-off-by: guohao <guohaoprc@163.com>
+---
+--- a/src/gen-lock-obj.sh
++++ b/src/gen-lock-obj.sh
+@@ -61,22 +61,33 @@
+ #define GPGRT_LOCK_INITIALIZER {-1}
+ EOF
+ else
+-AWK_VERSION_OUTPUT=$($AWK 'BEGIN { print PROCINFO["version"] }')
+-if test -n "$AWK_VERSION_OUTPUT"; then
+-    # It's GNU awk, which supports PROCINFO.
+-    AWK_OPTION=--non-decimal-data
+-fi
+-
+ cat <<'EOF' >conftest.$ac_ext
+ #include <pthread.h>
+ pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
+ EOF
+
+ if $CC -c conftest.$ac_ext; then :
+-  ac_mtx_size=$($OBJDUMP -t conftest.$ac_objext \
+-         | $AWK $AWK_OPTION '
+-/mtx$/ { mtx_size = int("0x" $5) }
+-END { print mtx_size }')
++  if ac_mtx_size=$($OBJDUMP -t conftest.$ac_objext \
++         | $AWK '
++/mtx$/ {
++  digits = tolower($5)
++  sub(/^0x/, "", digits)
++  mtx_size = 0
++  for (i = 1; i <= length(digits); i++) {
++    digit = index("0123456789abcdef", substr(digits, i, 1)) - 1
++    if (digit < 0) exit 1
++    mtx_size = mtx_size * 16 + digit
++  }
++  found++
++}
++END {
++  if (found != 1 || mtx_size < 1) exit 1
++  print mtx_size
++}'); then :
++  else
++    echo "Can't determine mutex size from object symbols" >&2
++    exit 1
++  fi
+ else
+     echo "Can't determine mutex size"
+     exit 1

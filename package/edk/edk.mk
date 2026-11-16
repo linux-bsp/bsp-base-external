@@ -31,6 +31,13 @@ ifeq ($(BR2_PACKAGE_EDK_TIMECTL),y)
 EDK_DEPENDENCIES += libcurl openssl
 endif
 
+ifeq ($(BR2_PACKAGE_EDK_BMC_REDFISH),y)
+EDK_DEPENDENCIES += libcurl cjson openssl
+endif
+ifeq ($(BR2_PACKAGE_EDK_BMC_IPMI),y)
+EDK_DEPENDENCIES += freeipmi
+endif
+
 # Buildroot owns component selection; Kconfig normalizes this native seed.
 define EDK_CONFIGURE_SELECTION
     $(INSTALL) -D -m 0644 $(@D)/configs/$(call qstrip,$(BR2_PACKAGE_EDK_DEFCONFIG)) $(@D)/buildroot.config
@@ -41,7 +48,8 @@ define EDK_CONFIGURE_SELECTION
     $(call KCONFIG_SET_OPT,CONFIG_FWCTLD,$(if $(filter y,$(BR2_PACKAGE_EDK_FWCTLD)),y,n),$(@D)/buildroot.config)
     $(call KCONFIG_SET_OPT,CONFIG_LOGCTL,$(if $(filter y,$(BR2_PACKAGE_EDK_LOGCTL)),y,n),$(@D)/buildroot.config)
     $(call KCONFIG_SET_OPT,CONFIG_TIMECTL,$(if $(filter y,$(BR2_PACKAGE_EDK_TIMECTL)),y,n),$(@D)/buildroot.config)
-    $(foreach option,DMSERVER DMCLI MANAGEMENT_TESTS TRANSFER_TESTS,$(call KCONFIG_DISABLE_OPT,CONFIG_$(option),$(@D)/buildroot.config)$(sep))
+    $(foreach feature,BMC BMC_CORE BMC_EPDU BMC_TEST_APP BMC_REDFISH BMC_IPMI BMC_PMCP BMC_COLLECTOR,$(call KCONFIG_SET_OPT,CONFIG_$(feature),$(if $(filter y,$(BR2_PACKAGE_EDK_$(feature))),y,n),$(@D)/buildroot.config)$(sep))
+    $(foreach option,BMC_TESTS DMSERVER DMCLI MANAGEMENT_TESTS TRANSFER_TESTS,$(call KCONFIG_DISABLE_OPT,CONFIG_$(option),$(@D)/buildroot.config)$(sep))
 endef
 EDK_PRE_CONFIGURE_HOOKS += EDK_CONFIGURE_SELECTION
 
