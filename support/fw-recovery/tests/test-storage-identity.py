@@ -22,9 +22,9 @@ class StorageIdentity(unittest.TestCase):
         cls.root=Path(cls.tmp.name)
         source=cls.root/'identity.c'
         source.write_text(r'''
-#include "dm/fwctl_core_api.h"
-#include "dm/hwid_env_api.h"
-#include "fwctl_core_update_priv.h"
+#include "dm/fwctl_api.h"
+#include "pdi/pdi_hwid_env.h"
+#include "fwctl_update_priv.h"
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
@@ -47,11 +47,11 @@ int main(int argc, char **argv) {
 ''')
         cls.binary=cls.root/'identity'
         module=SOURCE/'user/apps/fwctl'
-        files=['core/'+name for name in ('fwctl_core_engine.c','fwctl_core_identity.c','fwctl_core_recovery.c','fwctl_core_fit.c','fwctl_core_layout.c','fwctl_core_metadata.c')]
+        files=['core/'+name for name in ('fwctl_engine.c','fwctl_identity.c','fwctl_recovery.c','fwctl_fit.c','fwctl_layout.c','fwctl_metadata.c')]
         files += ['storage/'+name for name in ('fwctl_storage_dispatch.c','fwctl_storage_block.c','fwctl_storage_mtd.c')]
         command=['cc','-std=c11','-D_POSIX_C_SOURCE=200809L','-Wall','-Wextra','-Werror']
         command += ['-I'+str(module/path) for path in ('include','core','storage')]
-        command += ['-I'+str(SOURCE/'user/lib/hwid/include'),'-I'+str(HOST/'include'),'-I'+str(HOST/'include/libfdt'),str(source)]
+        command += ['-I'+str(SOURCE/'user/lib/pdi/include'),'-I'+str(HOST/'include'),'-I'+str(HOST/'include/libfdt'),str(source)]
         command += [str(module/f) for f in files]
         command += ['-L'+str(HOST/'lib'),'-Wl,-rpath,'+str(HOST/'lib'),'-lcrypto','-lfdt','-pthread','-o',str(cls.binary)]
         cls.runner=[]

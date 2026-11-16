@@ -102,6 +102,11 @@ endif
 HOST_EDK_CONF_OPTS = -DCONFIG_FILE=$(@D)/buildroot.config -DEDK_SOURCE_DIR=$(EDK_SITE)
 HOST_EDK_CONF_ENV = HOSTCC="$(HOSTCC)"
 HOST_EDK_INSTALL_OPTS = --component host-tools
+# Host tools now consume the selected PDI/OSA shared library capabilities.
+define HOST_EDK_INSTALL_LIBRARIES
+    $(BR2_CMAKE) --install $(HOST_EDK_BUILDDIR) --component libraries
+endef
+HOST_EDK_PRE_INSTALL_HOOKS += HOST_EDK_INSTALL_LIBRARIES
 
 define HOST_EDK_CONFIGURE_SELECTION
     $(INSTALL) -D -m 0644 $(@D)/configs/management_base_defconfig $(@D)/buildroot.config

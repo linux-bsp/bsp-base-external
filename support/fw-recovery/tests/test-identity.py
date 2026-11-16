@@ -25,9 +25,9 @@ with tempfile.TemporaryDirectory(prefix='fw-identity-') as directory:
     root = Path(directory)
     source = root/'identity.c'
     source.write_text(r'''
-#include "fwctl_core_fit_priv.h"
+#include "fwctl_fit_priv.h"
 #include "fwctl_storage_priv.h"
-#include "dm/hwid_env_api.h"
+#include "pdi/pdi_hwid_env.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -76,8 +76,8 @@ int main(int argc, char **argv)
 ''')
     binary = root/'identity'
     run(['cc', '-std=c11', '-D_POSIX_C_SOURCE=200809L', '-Wall', '-Wextra', '-Werror',
-         '-I'+str(MODULE/'core'), '-I'+str(MODULE/'storage'), '-I'+str(MODULE/'include'), '-I'+str(WORKSPACE/'edk/user/lib/hwid/include'), '-I'+str(FDT), '-I'+str(HOST/'include'),
-         source, MODULE/'core/fwctl_core_fit.c', MODULE/'core/fwctl_core_metadata.c',
+         '-I'+str(MODULE/'core'), '-I'+str(MODULE/'storage'), '-I'+str(MODULE/'include'), '-I'+str(WORKSPACE/'edk/user/lib/pdi/include'), '-I'+str(FDT), '-I'+str(HOST/'include'),
+         source, MODULE/'core/fwctl_fit.c', MODULE/'core/fwctl_metadata.c',
          FDT/'fdt.c', FDT/'fdt_ro.c', '-L'+str(HOST/'lib'), '-Wl,-rpath,'+str(HOST/'lib'),
          '-lcrypto', '-o', binary])
     for i in range(2):
