@@ -63,7 +63,7 @@ int main(int argc, char **argv) {
         subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror',
             '-I'+str(HOST/'include'),'-I'+str(SOURCE/'user/lib/transfer/include'),
             '-I'+str(SOURCE/'user/lib/osa/include'),str(SOURCE/'user/lib/osa/src/osa_log.c'),
-            str(wrapper),str(SOURCE/'user/apps/fwctl/recovery/fw-init.c'),
+            str(wrapper),str(SOURCE/'user/apps/fwctl/recovery/fw_init.c'),
             '-L'+str(HOST/'lib'),'-Wl,-rpath,'+str(HOST/'lib'),
             os.environ.get('TRANSFER_CLIENT_ARCHIVE', str(WORKSPACE/'edk/.build/management-tests/lib/libedk_transfer_client.a')),'-lcurl','-lcrypto','-pthread','-o',str(cls.native)],check=True)
 
