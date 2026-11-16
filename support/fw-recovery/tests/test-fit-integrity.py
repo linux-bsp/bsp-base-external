@@ -19,8 +19,8 @@ class FITIntegrity(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='fw-release-parser-') as name:
             root=Path(name);source=root/'check.c';binary=root/'check'
             source.write_text(r'''
-#include "dm_fw_fit_priv.h"
-#include "dm/hwid.h"
+#include "fwctl_core_fit_priv.h"
+#include "dm/hwid_env_api.h"
 #include <string.h>
 static const char *device;
 int dm_hwid_read(const char *config, struct dm_hwid_status *result) {
@@ -53,7 +53,7 @@ int main(int argc,char **argv) {
 ''')
             subprocess.run(['cc','-D_POSIX_C_SOURCE=200809L','-std=c11','-Wall','-Wextra','-Werror',
                 '-I'+str(SOURCE/'user/apps/fwctl/core'),'-I'+str(SOURCE/'user/lib/hwid/include'),'-I'+str(FDT),'-I'+str(HOST/'include'),
-                str(source),str(SOURCE/'user/apps/fwctl/core/dm_fw_fit.c'),str(FDT/'fdt.c'),str(FDT/'fdt_ro.c'),
+                str(source),str(SOURCE/'user/apps/fwctl/core/fwctl_core_fit.c'),str(FDT/'fdt.c'),str(FDT/'fdt_ro.c'),
                 '-L'+str(HOST/'lib'),'-Wl,-rpath,'+str(HOST/'lib'),'-lcrypto','-o',str(binary)],check=True)
             fits=[str(IMAGES/'release'/f'{part}.itb') for part in ('release','kernel','rootfs','bootloader')]
             self.assertEqual(subprocess.run([str(binary),'1010001000110000',*fits]).returncode,0)
@@ -63,9 +63,9 @@ int main(int argc,char **argv) {
         with tempfile.TemporaryDirectory(prefix='fw-fit-test-') as name:
             root=Path(name);source=root/'check.c';binary=root/'check'
             source.write_text(r'''
-#include "dm_fw_fit_priv.h"
+#include "fwctl_core_fit_priv.h"
 #include <string.h>
-#include "dm/hwid.h"
+#include "dm/hwid_env_api.h"
 /* Payload tests inject a fixed identity; environment backends have separate tests. */
 int dm_hwid_read(const char *config, struct dm_hwid_status *result) {
     if (strcmp(config,"test-hwid")) return -1;
@@ -86,7 +86,7 @@ int main(int argc, char **argv) {
 }
 ''')
             subprocess.run(['cc','-D_POSIX_C_SOURCE=200809L','-std=c11','-Wall','-Wextra','-Werror',
-                '-I'+str(SOURCE/'user/apps/fwctl/core'),'-I'+str(SOURCE/'user/apps/fwctl/storage'),'-I'+str(SOURCE/'user/lib/hwid/include'),'-I'+str(FDT),'-I'+str(HOST/'include'),str(source),str(SOURCE/'user/apps/fwctl/core/dm_fw_fit.c'),
+                '-I'+str(SOURCE/'user/apps/fwctl/core'),'-I'+str(SOURCE/'user/apps/fwctl/storage'),'-I'+str(SOURCE/'user/lib/hwid/include'),'-I'+str(FDT),'-I'+str(HOST/'include'),str(source),str(SOURCE/'user/apps/fwctl/core/fwctl_core_fit.c'),
                 str(FDT/'fdt.c'),str(FDT/'fdt_ro.c'),'-L'+str(HOST/'lib'),'-Wl,-rpath,'+str(HOST/'lib'),'-lcrypto','-o',str(binary)],check=True)
             fit=IMAGES/'release/kernel.itb';ramdisk=(IMAGES/'initramfs.cpio.gz').read_bytes()
             self.assertEqual(subprocess.run([str(binary),str(fit)]).returncode,0)
@@ -128,14 +128,14 @@ int main(int argc, char **argv) {
         with tempfile.TemporaryDirectory(prefix='fw-real-restore-') as name:
             root=Path(name); source=root/'restore.c'; binary=root/'restore'
             source.write_text(r'''
-#include "dm/firmware.h"
-#include "dm_fw_update_priv.h"
-#include "dm_fw_fit_priv.h"
+#include "dm/fwctl_core_api.h"
+#include "fwctl_core_update_priv.h"
+#include "fwctl_core_fit_priv.h"
 #include <assert.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
-#include "dm/hwid.h"
+#include "dm/hwid_env_api.h"
 /* Payload tests inject a fixed identity; environment backends have separate tests. */
 int dm_hwid_read(const char *config, struct dm_hwid_status *result) {
     if (strcmp(config,"test-hwid")) return -1;
@@ -171,11 +171,11 @@ int main(int argc,char **argv) {
     assert(!dm_fw_close(handle));return 0;
 }
 ''')
-            modules=['dm_fw.c','dm_fw_identity.c','dm_fw_recovery.c','dm_fw_fit.c','dm_fw_layout.c',
-                'dm_fw_metadata.c','dm_fw_storage.c','dm_fw_storage_block.c','dm_fw_storage_mtd.c']
+            modules=['fwctl_core_engine.c','fwctl_core_identity.c','fwctl_core_recovery.c','fwctl_core_fit.c','fwctl_core_layout.c',
+                'fwctl_core_metadata.c','fwctl_storage_dispatch.c','fwctl_storage_block.c','fwctl_storage_mtd.c']
             subprocess.run(['cc','-D_POSIX_C_SOURCE=200809L','-std=c11','-Wall','-Wextra','-Werror',
                 '-I'+str(SOURCE/'user/apps/fwctl/core'),'-I'+str(SOURCE/'user/apps/fwctl/storage'),'-I'+str(SOURCE/'user/apps/fwctl/include'),'-I'+str(SOURCE/'user/lib/hwid/include'),'-I'+str(FDT),'-I'+str(HOST/'include'),str(source)] +
-                [str(SOURCE/'user/apps/fwctl'/('storage' if module.startswith('dm_fw_storage') else 'core')/module) for module in modules] + [str(FDT/'fdt.c'),str(FDT/'fdt_ro.c'),
+                [str(SOURCE/'user/apps/fwctl'/('storage' if module.startswith('fwctl_storage') else 'core')/module) for module in modules] + [str(FDT/'fdt.c'),str(FDT/'fdt_ro.c'),
                 '-L'+str(HOST/'lib'),'-Wl,-rpath,'+str(HOST/'lib'),'-lcrypto','-pthread','-o',str(binary)],check=True)
             raw=(IMAGES/'rootfs-verity.squashfs').read_bytes()
             # Debug images can exceed the former fixed 32 MiB test region.

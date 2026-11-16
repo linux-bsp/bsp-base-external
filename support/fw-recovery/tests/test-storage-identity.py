@@ -22,9 +22,9 @@ class StorageIdentity(unittest.TestCase):
         cls.root=Path(cls.tmp.name)
         source=cls.root/'identity.c'
         source.write_text(r'''
-#include "dm/firmware.h"
-#include "dm/hwid.h"
-#include "dm_fw_update_priv.h"
+#include "dm/fwctl_core_api.h"
+#include "dm/hwid_env_api.h"
+#include "fwctl_core_update_priv.h"
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
@@ -47,8 +47,8 @@ int main(int argc, char **argv) {
 ''')
         cls.binary=cls.root/'identity'
         module=SOURCE/'user/apps/fwctl'
-        files=['core/'+name for name in ('dm_fw.c','dm_fw_identity.c','dm_fw_recovery.c','dm_fw_fit.c','dm_fw_layout.c','dm_fw_metadata.c')]
-        files += ['storage/'+name for name in ('dm_fw_storage.c','dm_fw_storage_block.c','dm_fw_storage_mtd.c')]
+        files=['core/'+name for name in ('fwctl_core_engine.c','fwctl_core_identity.c','fwctl_core_recovery.c','fwctl_core_fit.c','fwctl_core_layout.c','fwctl_core_metadata.c')]
+        files += ['storage/'+name for name in ('fwctl_storage_dispatch.c','fwctl_storage_block.c','fwctl_storage_mtd.c')]
         command=['cc','-std=c11','-D_POSIX_C_SOURCE=200809L','-Wall','-Wextra','-Werror']
         command += ['-I'+str(module/path) for path in ('include','core','storage')]
         command += ['-I'+str(SOURCE/'user/lib/hwid/include'),'-I'+str(HOST/'include'),'-I'+str(HOST/'include/libfdt'),str(source)]

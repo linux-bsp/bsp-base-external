@@ -62,8 +62,8 @@ int main(int argc, char **argv) {
         cls.native=root/'fwctl-recovery-test'
         subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror',
             '-I'+str(HOST/'include'),'-I'+str(SOURCE/'user/lib/transfer/include'),
-            '-I'+str(SOURCE/'user/lib/osa/include'),str(SOURCE/'user/lib/osa/src/osa_log.c'),
-            str(wrapper),str(SOURCE/'user/apps/fwctl/recovery/fw_init.c'),
+            '-I'+str(SOURCE/'user/lib/osa/include'),str(SOURCE/'user/lib/osa/src/osa_log_output.c'),
+            str(wrapper),str(SOURCE/'user/apps/fwctl/recovery/fwctl_recovery_init.c'),
             '-L'+str(HOST/'lib'),'-Wl,-rpath,'+str(HOST/'lib'),
             os.environ.get('TRANSFER_CLIENT_ARCHIVE', str(WORKSPACE/'edk/.build/management-tests/lib/libedk_transfer_client.a')),'-lcurl','-lcrypto','-pthread','-o',str(cls.native)],check=True)
 
@@ -118,8 +118,8 @@ int main(int argc, char **argv) {
         binary = self.dir/'storage-ready-test'
         subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror',
             '-I'+str(HOST/'include'), '-I'+str(SOURCE/'user/lib/transfer/include'),
-            '-I'+str(SOURCE/'user/lib/osa/include'), str(SOURCE/'user/lib/osa/src/osa_log.c'),
-            str(SOURCE/'user/apps/fwctl/tests/recovery/storage-ready-test.c'),
+            '-I'+str(SOURCE/'user/lib/osa/include'), str(SOURCE/'user/lib/osa/src/osa_log_output.c'),
+            str(SOURCE/'user/apps/fwctl/tests/recovery/fwctl_test_storage_ready.c'),
             '-L'+str(HOST/'lib'), '-Wl,-rpath,'+str(HOST/'lib'),
             '-Wl,--wrap=access', '-Wl,--wrap=fork', '-Wl,--wrap=execv',
             os.environ.get('TRANSFER_CLIENT_ARCHIVE', str(WORKSPACE/'edk/.build/management-tests/lib/libedk_transfer_client.a')), '-lcurl', '-lcrypto', '-pthread', '-o', str(binary)], check=True)
