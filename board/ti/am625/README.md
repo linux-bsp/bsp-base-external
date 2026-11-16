@@ -42,16 +42,12 @@ The Redfish endpoint `192.168.10.201` is configured in
 (mode 0600), then set `[daemon] enabled = true` to start telemetry collection.
 Keep credentials out of the repository.
 
-The pdebug web debugger is enabled through `BR2_PACKAGE_EDK_WEB`, using lighttpd
-at port 8080. Open `http://192.168.10.211:8080/` and enter the board's runtime
-access key from `cat /run/pdebug-web/token`. The key changes after reboot unless
-a private root-owned mode-0600 `/etc/edk/pdebug-web.token` is supplied. The CGI
-executes the installed pdebug with bounded arguments/output/time and reads fixed
-log sources; it does not execute shell command lines. Configuration/startup is
-in `rootfs-overlay/etc/lighttpd/lighttpd.conf` and `pdebug-web.service`.
-Use this endpoint on the development network. Select a device from the actual
-PDM inventory to display MCU, LED, Satellite or Power controls. Selection does
-not execute peripheral commands; power outputs are never enabled automatically.
+Device Manager diagnostics use `BR2_PACKAGE_EDK_DEBUG` and `dm-debug.socket`
+on port 8080. Open the management server on port 8090 and select Device Debug.
+The device endpoint calls PDI operations through `dmcli`; it serves no web pages
+and requires no lighttpd. Use `dmcli debug --local help` for local validation.
+Hardware controls require explicit confirmation in the web form. See
+`edk/docs/device-manager/debug.md` for API, timeout and deployment boundaries.
 
 `bmc-test` reads its multi-device inventory from
 `rootfs-overlay/etc/libbmc/devices.conf`. The image currently contains xFusion

@@ -15,8 +15,8 @@ EDK_CONF_OPTS = -DCONFIG_FILE=$(@D)/buildroot.config \
     -DCMAKE_BUILD_TYPE=$(call qstrip,$(BR2_PACKAGE_EDK_BUILD_TYPE))
 EDK_CONF_ENV = HOSTCC="$(HOSTCC)"
 
-ifeq ($(BR2_PACKAGE_EDK_WEB),y)
-EDK_DEPENDENCIES += cjson lighttpd
+ifeq ($(BR2_PACKAGE_EDK_DEBUG),y)
+EDK_DEPENDENCIES += cjson libcurl openssl
 endif
 ifeq ($(BR2_PACKAGE_EDK_FWCTL),y)
 EDK_DEPENDENCIES += dtc libcurl openssl libubootenv
@@ -43,13 +43,13 @@ define EDK_CONFIGURE_SELECTION
     $(INSTALL) -D -m 0644 $(@D)/configs/$(call qstrip,$(BR2_PACKAGE_EDK_DEFCONFIG)) $(@D)/buildroot.config
     $(call KCONFIG_SET_OPT,CONFIG_ARCH,"$(KERNEL_ARCH)",$(@D)/buildroot.config)
     $(call KCONFIG_SET_OPT,CONFIG_PDM,$(if $(filter y,$(BR2_PACKAGE_EDK_PDM)),m,n),$(@D)/buildroot.config)
-    $(call KCONFIG_SET_OPT,CONFIG_PDEBUG_WEB,$(if $(filter y,$(BR2_PACKAGE_EDK_WEB)),y,n),$(@D)/buildroot.config)
+    $(call KCONFIG_SET_OPT,CONFIG_DM_DEBUG,$(if $(filter y,$(BR2_PACKAGE_EDK_DEBUG)),y,n),$(@D)/buildroot.config)
     $(call KCONFIG_SET_OPT,CONFIG_FWCTL,$(if $(filter y,$(BR2_PACKAGE_EDK_FWCTL)),y,n),$(@D)/buildroot.config)
     $(call KCONFIG_SET_OPT,CONFIG_FWCTLD,$(if $(filter y,$(BR2_PACKAGE_EDK_FWCTLD)),y,n),$(@D)/buildroot.config)
     $(call KCONFIG_SET_OPT,CONFIG_LOGCTL,$(if $(filter y,$(BR2_PACKAGE_EDK_LOGCTL)),y,n),$(@D)/buildroot.config)
     $(call KCONFIG_SET_OPT,CONFIG_TIMECTL,$(if $(filter y,$(BR2_PACKAGE_EDK_TIMECTL)),y,n),$(@D)/buildroot.config)
     $(foreach feature,BMC BMC_CORE BMC_EPDU BMC_TEST_APP BMC_REDFISH BMC_IPMI BMC_PMCP BMC_COLLECTOR,$(call KCONFIG_SET_OPT,CONFIG_$(feature),$(if $(filter y,$(BR2_PACKAGE_EDK_$(feature))),y,n),$(@D)/buildroot.config)$(sep))
-    $(foreach option,BMC_TESTS DMSERVER DMCLI MANAGEMENT_TESTS PDI_TRANSFER_TESTS,$(call KCONFIG_DISABLE_OPT,CONFIG_$(option),$(@D)/buildroot.config)$(sep))
+    $(foreach option,BMC_TESTS DMSERVER MANAGEMENT_TESTS PDI_TRANSFER_TESTS,$(call KCONFIG_DISABLE_OPT,CONFIG_$(option),$(@D)/buildroot.config)$(sep))
 endef
 EDK_PRE_CONFIGURE_HOOKS += EDK_CONFIGURE_SELECTION
 
@@ -94,10 +94,10 @@ HOST_EDK_SUPPORTS_IN_SOURCE_BUILD = NO
 HOST_EDK_OVERRIDE_SRCDIR_RSYNC_EXCLUSIONS = $(EDK_OVERRIDE_SRCDIR_RSYNC_EXCLUSIONS)
 HOST_EDK_DEPENDENCIES = host-flex host-bison host-pkgconf host-cmake
 ifeq ($(BR2_PACKAGE_HOST_EDK_DMSERVER),y)
-HOST_EDK_DEPENDENCIES += host-sqlite host-zlib host-uboot-tools host-openssl
+HOST_EDK_DEPENDENCIES += host-sqlite host-zlib host-uboot-tools host-openssl host-libcurl host-cjson
 endif
 ifeq ($(BR2_PACKAGE_HOST_EDK_DMCLI),y)
-HOST_EDK_DEPENDENCIES += host-libcurl host-openssl
+HOST_EDK_DEPENDENCIES += host-libcurl host-openssl host-cjson
 endif
 HOST_EDK_CONF_OPTS = -DCONFIG_FILE=$(@D)/buildroot.config -DEDK_SOURCE_DIR=$(EDK_SITE)
 HOST_EDK_CONF_ENV = HOSTCC="$(HOSTCC)"
