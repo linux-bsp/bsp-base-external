@@ -49,7 +49,7 @@ define EDK_CONFIGURE_SELECTION
     $(call KCONFIG_SET_OPT,CONFIG_LOGCTL,$(if $(filter y,$(BR2_PACKAGE_EDK_LOGCTL)),y,n),$(@D)/buildroot.config)
     $(call KCONFIG_SET_OPT,CONFIG_TIMECTL,$(if $(filter y,$(BR2_PACKAGE_EDK_TIMECTL)),y,n),$(@D)/buildroot.config)
     $(foreach feature,BMC BMC_CORE BMC_EPDU BMC_TEST_APP BMC_REDFISH BMC_IPMI BMC_PMCP BMC_COLLECTOR,$(call KCONFIG_SET_OPT,CONFIG_$(feature),$(if $(filter y,$(BR2_PACKAGE_EDK_$(feature))),y,n),$(@D)/buildroot.config)$(sep))
-    $(foreach option,BMC_TESTS DMSERVER DMCLI MANAGEMENT_TESTS TRANSFER_TESTS,$(call KCONFIG_DISABLE_OPT,CONFIG_$(option),$(@D)/buildroot.config)$(sep))
+    $(foreach option,BMC_TESTS DMSERVER DMCLI MANAGEMENT_TESTS PDI_TRANSFER_TESTS,$(call KCONFIG_DISABLE_OPT,CONFIG_$(option),$(@D)/buildroot.config)$(sep))
 endef
 EDK_PRE_CONFIGURE_HOOKS += EDK_CONFIGURE_SELECTION
 
