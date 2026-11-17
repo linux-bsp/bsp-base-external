@@ -1,7 +1,7 @@
 [Unit]
-Description=Peripheral satellite demo
-Requires=pdm.service
-After=pdm.service
+Description=Satellite command and telemetry link
+Wants=bsp-can.service
+After=bsp-can.service network.target
 StartLimitIntervalSec=60
 StartLimitBurst=3
 
