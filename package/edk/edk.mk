@@ -16,23 +16,23 @@ EDK_CONF_OPTS = -DCONFIG_FILE=$(@D)/buildroot.config \
 EDK_CONF_ENV = HOSTCC="$(HOSTCC)"
 
 ifeq ($(BR2_PACKAGE_EDK_DEBUG),y)
-EDK_DEPENDENCIES += cjson libcurl openssl
+EDK_DEPENDENCIES += cjson openssl
 endif
 ifeq ($(BR2_PACKAGE_EDK_FWCTL),y)
-EDK_DEPENDENCIES += dtc libcurl openssl libubootenv
+EDK_DEPENDENCIES += dtc openssl libubootenv
 endif
 ifeq ($(BR2_PACKAGE_EDK_FWCTLD),y)
 EDK_DEPENDENCIES += busybox
 endif
 ifeq ($(BR2_PACKAGE_EDK_LOGCTL),y)
-EDK_DEPENDENCIES += busybox libcurl openssl zlib
+EDK_DEPENDENCIES += busybox openssl zlib
 endif
 ifeq ($(BR2_PACKAGE_EDK_TIMECTL),y)
-EDK_DEPENDENCIES += libcurl openssl
+EDK_DEPENDENCIES += openssl
 endif
 
 ifeq ($(BR2_PACKAGE_EDK_BMC_REDFISH),y)
-EDK_DEPENDENCIES += libcurl cjson openssl
+EDK_DEPENDENCIES += cjson openssl
 endif
 ifeq ($(BR2_PACKAGE_EDK_BMC_IPMI),y)
 EDK_DEPENDENCIES += freeipmi
@@ -116,10 +116,10 @@ HOST_EDK_SUPPORTS_IN_SOURCE_BUILD = NO
 HOST_EDK_OVERRIDE_SRCDIR_RSYNC_EXCLUSIONS = $(EDK_OVERRIDE_SRCDIR_RSYNC_EXCLUSIONS)
 HOST_EDK_DEPENDENCIES = host-flex host-bison host-pkgconf host-cmake
 ifeq ($(BR2_PACKAGE_HOST_EDK_DMSERVER),y)
-HOST_EDK_DEPENDENCIES += host-sqlite host-zlib host-uboot-tools host-openssl host-libcurl host-cjson
+HOST_EDK_DEPENDENCIES += host-sqlite host-zlib host-uboot-tools host-openssl host-cjson
 endif
 ifeq ($(BR2_PACKAGE_HOST_EDK_DMCLI),y)
-HOST_EDK_DEPENDENCIES += host-libcurl host-openssl host-cjson
+HOST_EDK_DEPENDENCIES += host-openssl host-cjson
 endif
 HOST_EDK_CONF_OPTS = -DCONFIG_FILE=$(@D)/buildroot.config -DEDK_SOURCE_DIR=$(EDK_SITE)
 HOST_EDK_CONF_ENV = HOSTCC="$(HOSTCC)"
