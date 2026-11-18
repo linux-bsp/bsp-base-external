@@ -116,7 +116,7 @@ HOST_EDK_SUPPORTS_IN_SOURCE_BUILD = NO
 HOST_EDK_OVERRIDE_SRCDIR_RSYNC_EXCLUSIONS = $(EDK_OVERRIDE_SRCDIR_RSYNC_EXCLUSIONS)
 HOST_EDK_DEPENDENCIES = host-flex host-bison host-pkgconf host-cmake
 ifeq ($(BR2_PACKAGE_HOST_EDK_DMSERVER),y)
-HOST_EDK_DEPENDENCIES += host-sqlite host-zlib host-uboot-tools host-openssl host-cjson
+HOST_EDK_DEPENDENCIES += host-sqlite host-zlib host-dtc host-openssl
 endif
 ifeq ($(BR2_PACKAGE_HOST_EDK_DMCLI),y)
 HOST_EDK_DEPENDENCIES += host-openssl host-cjson

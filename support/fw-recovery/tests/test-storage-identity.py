@@ -51,9 +51,11 @@ int main(int argc, char **argv) {
         files += ['storage/'+name for name in ('fwctl_storage_dispatch.c','fwctl_storage_block.c','fwctl_storage_mtd.c')]
         command=['cc','-std=c11','-D_POSIX_C_SOURCE=200809L','-Wall','-Wextra','-Werror']
         command += ['-I'+str(module/path) for path in ('include','core','storage')]
-        command += ['-I'+str(SOURCE/'user/lib/pdi/include'),'-I'+str(HOST/'include'),'-I'+str(HOST/'include/libfdt'),str(source)]
-        command += [str(module/f) for f in files]
-        command += ['-L'+str(HOST/'lib'),'-Wl,-rpath,'+str(HOST/'lib'),'-lcrypto','-lfdt','-pthread','-o',str(cls.binary)]
+        common=SOURCE/'user/common'
+        command += ['-I'+str(common/'include'),'-I'+str(SOURCE/'user/lib/bsl/include'),
+            '-I'+str(SOURCE/'user/lib/pdi/include'),'-I'+str(HOST/'include'),'-I'+str(HOST/'include/libfdt'),str(source)]
+        command += [str(module/f) for f in files] + [str(common/'ota/management_fit_reader.c')]
+        command += ['-L'+str(HOST/'lib'),'-Wl,-rpath,'+str(HOST/'lib'),'-lcrypto','-lfdt','-lbsl','-pthread','-o',str(cls.binary)]
         cls.runner=[]
         if os.environ.get('FW_ID_TEST_TARGET'):
             target=Path(os.environ.get('TARGET_DIR',WORKSPACE/'output/am625/target'))

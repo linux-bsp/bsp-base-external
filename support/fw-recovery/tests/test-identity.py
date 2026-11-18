@@ -11,7 +11,7 @@ WORKSPACE = Path(__file__).resolve().parents[4]
 HOST = Path(os.environ.get('HOST_DIR', WORKSPACE/'output/am625/host'))
 IMAGES = Path(os.environ.get('FW_TEST_IMAGES', WORKSPACE/'output/am625/images'))
 MODULE = WORKSPACE/'edk/user/apps/fwctl'
-FDT = WORKSPACE/'uboot/u-boot-2026.04/scripts/dtc/libfdt'
+COMMON = WORKSPACE/'edk/user/common'
 SANDBOX = WORKSPACE/'output/uboot-ota-sandbox/u-boot'
 ENV = dict(os.environ, PATH=str(HOST/'bin')+':'+os.environ['PATH'])
 
@@ -41,7 +41,7 @@ int fw_storage_write_metadata(struct fw_storage *s, unsigned c, const void *p, s
 int main(int argc, char **argv)
 {
     assert(argc == 6);
-    struct fw_layout layout = {0}; struct fw_fit fit; struct fw_release release;
+    struct fw_layout layout = {0}; struct management_fit fit; struct fw_release release;
     strcpy(layout.hwid_config, "test-hwid");
     if (fw_fit_open(&fit, argv[1], &layout)) return 1;
     int rc = fw_fit_verify_release(&layout, &fit, &release);
@@ -76,10 +76,10 @@ int main(int argc, char **argv)
 ''')
     binary = root/'identity'
     run(['cc', '-std=c11', '-D_POSIX_C_SOURCE=200809L', '-Wall', '-Wextra', '-Werror',
-         '-I'+str(MODULE/'core'), '-I'+str(MODULE/'storage'), '-I'+str(MODULE/'include'), '-I'+str(WORKSPACE/'edk/user/lib/pdi/include'), '-I'+str(FDT), '-I'+str(HOST/'include'),
+         '-I'+str(MODULE/'core'), '-I'+str(MODULE/'storage'), '-I'+str(MODULE/'include'), '-I'+str(WORKSPACE/'edk/user/lib/pdi/include'), '-I'+str(COMMON/'include'), '-I'+str(HOST/'include'), '-I'+str(HOST/'include/libfdt'),
          source, MODULE/'core/fwctl_fit.c', MODULE/'core/fwctl_metadata.c',
-         FDT/'fdt.c', FDT/'fdt_ro.c', '-L'+str(HOST/'lib'), '-Wl,-rpath,'+str(HOST/'lib'),
-         '-lcrypto', '-o', binary])
+         COMMON/'ota/management_fit_reader.c', '-L'+str(HOST/'lib'), '-Wl,-rpath,'+str(HOST/'lib'),
+         '-lcrypto', '-lfdt', '-o', binary])
     for i in range(2):
         shutil.copyfile(IMAGES/f'meta{i}.bin', root/f'meta{i}.bin')
     args = [binary, IMAGES/'release/release.itb', IMAGES/'release/kernel.itb',

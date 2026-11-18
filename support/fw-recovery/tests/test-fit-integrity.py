@@ -12,7 +12,12 @@ WORKSPACE=Path(__file__).resolve().parents[4]
 HOST=Path(os.environ.get('HOST_DIR',WORKSPACE/'output/am625/host'))
 IMAGES=Path(os.environ.get('FW_TEST_IMAGES', WORKSPACE/'output/am625/images'))
 SOURCE=WORKSPACE/'edk'
-FDT=WORKSPACE/'uboot/u-boot-2026.04/scripts/dtc/libfdt'
+COMMON=SOURCE/'user/common'
+FWCTL=SOURCE/'user/apps/fwctl'
+FIT=COMMON/'ota/management_fit_reader.c'
+INCLUDES=['-I'+str(p) for p in (FWCTL/'core', FWCTL/'storage', FWCTL/'include',
+    COMMON/'include', SOURCE/'user/lib/pdi/include', SOURCE/'user/lib/bsl/include', HOST/'include', HOST/'include/libfdt')]
+LIBRARIES=['-L'+str(HOST/'lib'),'-Wl,-rpath,'+str(HOST/'lib'),'-lcrypto','-lfdt']
 
 class FITIntegrity(unittest.TestCase):
     def test_generated_release_and_all_components_match_the_device_engine(self):
@@ -32,7 +37,7 @@ const char *fw_component_name(enum fw_component c) {
 }
 int main(int argc,char **argv) {
     if(argc!=6)return 2;
-    device=argv[1];struct fw_layout layout={0};struct fw_fit fit;
+    device=argv[1];struct fw_layout layout={0};struct management_fit fit;
     struct fw_release release;strcpy(layout.hwid_config,"test-hwid");
     if(fw_fit_open(&fit,argv[2],&layout))return 1;
     int rc=fw_fit_verify_release(&layout,&fit,&release);fw_fit_close(&fit);
@@ -52,9 +57,7 @@ int main(int argc,char **argv) {
 }
 ''')
             subprocess.run(['cc','-D_POSIX_C_SOURCE=200809L','-std=c11','-Wall','-Wextra','-Werror',
-                '-I'+str(SOURCE/'user/apps/fwctl/core'),'-I'+str(SOURCE/'user/lib/pdi/include'),'-I'+str(FDT),'-I'+str(HOST/'include'),
-                str(source),str(SOURCE/'user/apps/fwctl/core/fwctl_fit.c'),str(FDT/'fdt.c'),str(FDT/'fdt_ro.c'),
-                '-L'+str(HOST/'lib'),'-Wl,-rpath,'+str(HOST/'lib'),'-lcrypto','-o',str(binary)],check=True)
+                *INCLUDES,source,FWCTL/'core/fwctl_fit.c',FIT,*LIBRARIES,'-o',binary],check=True)
             fits=[str(IMAGES/'release'/f'{part}.itb') for part in ('release','kernel','rootfs','bootloader')]
             self.assertEqual(subprocess.run([str(binary),'1010001000110000',*fits]).returncode,0)
             self.assertNotEqual(subprocess.run([str(binary),'1010001000111000',*fits]).returncode,0)
@@ -77,7 +80,7 @@ const char *fw_component_name(enum fw_component c) {
 }
 int main(int argc, char **argv) {
     if (argc != 2) return 2;
-    struct fw_layout layout={0}; struct fw_fit fit; struct fw_package package;
+    struct fw_layout layout={0}; struct management_fit fit; struct fw_package package;
     strcpy(layout.hwid_config,"test-hwid");
     if (fw_fit_open(&fit,argv[1],&layout)) return 3;
     int rc=fw_fit_verify_package(&layout,&fit,&package);
@@ -86,8 +89,7 @@ int main(int argc, char **argv) {
 }
 ''')
             subprocess.run(['cc','-D_POSIX_C_SOURCE=200809L','-std=c11','-Wall','-Wextra','-Werror',
-                '-I'+str(SOURCE/'user/apps/fwctl/core'),'-I'+str(SOURCE/'user/apps/fwctl/storage'),'-I'+str(SOURCE/'user/lib/pdi/include'),'-I'+str(FDT),'-I'+str(HOST/'include'),str(source),str(SOURCE/'user/apps/fwctl/core/fwctl_fit.c'),
-                str(FDT/'fdt.c'),str(FDT/'fdt_ro.c'),'-L'+str(HOST/'lib'),'-Wl,-rpath,'+str(HOST/'lib'),'-lcrypto','-o',str(binary)],check=True)
+                *INCLUDES,source,FWCTL/'core/fwctl_fit.c',FIT,*LIBRARIES,'-o',binary],check=True)
             fit=IMAGES/'release/kernel.itb';ramdisk=(IMAGES/'initramfs.cpio.gz').read_bytes()
             self.assertEqual(subprocess.run([str(binary),str(fit)]).returncode,0)
             for n in range(2):
@@ -150,7 +152,7 @@ int main(int argc,char **argv) {
     assert(!dm_fw_initialize(handle,0));
     /* Factory initialization has no component version; bind the repair to this FIT. */
     struct fw_layout layout;struct fw_storage storage;struct fw_metadata metadata;
-    struct fw_fit fit;struct fw_package package;
+    struct management_fit fit;struct fw_package package;
     fw_layout_defaults(&layout);
     assert(!fw_layout_load(&layout,argv[1]));assert(!fw_storage_open(&storage,&layout,true));
     assert(!fw_metadata_load(&storage,&metadata));assert(!fw_fit_open(&fit,argv[2],&layout));
@@ -174,9 +176,9 @@ int main(int argc,char **argv) {
             modules=['fwctl_engine.c','fwctl_identity.c','fwctl_recovery.c','fwctl_fit.c','fwctl_layout.c',
                 'fwctl_metadata.c','fwctl_storage_dispatch.c','fwctl_storage_block.c','fwctl_storage_mtd.c']
             subprocess.run(['cc','-D_POSIX_C_SOURCE=200809L','-std=c11','-Wall','-Wextra','-Werror',
-                '-I'+str(SOURCE/'user/apps/fwctl/core'),'-I'+str(SOURCE/'user/apps/fwctl/storage'),'-I'+str(SOURCE/'user/apps/fwctl/include'),'-I'+str(SOURCE/'user/lib/pdi/include'),'-I'+str(FDT),'-I'+str(HOST/'include'),str(source)] +
-                [str(SOURCE/'user/apps/fwctl'/('storage' if module.startswith('fwctl_storage') else 'core')/module) for module in modules] + [str(FDT/'fdt.c'),str(FDT/'fdt_ro.c'),
-                '-L'+str(HOST/'lib'),'-Wl,-rpath,'+str(HOST/'lib'),'-lcrypto','-pthread','-o',str(binary)],check=True)
+                *INCLUDES,source,FIT] +
+                [FWCTL/('storage' if module.startswith('fwctl_storage') else 'core')/module for module in modules] +
+                [*LIBRARIES,'-lbsl','-pthread','-o',binary],check=True)
             raw=(IMAGES/'rootfs-verity.squashfs').read_bytes()
             # Debug images can exceed the former fixed 32 MiB test region.
             # Keep every artificial region aligned and non-overlapping.
@@ -186,7 +188,7 @@ int main(int argc,char **argv) {
             regions=['meta0','meta1','tiboot3_a','tiboot3_b','tispl_a','tispl_b','uboot_a','uboot_b','kernel_a','kernel_b','rootfs_a','rootfs_b']
             with media.open('wb') as f:
                 f.truncate(len(regions)*span);f.seek(regions.index('rootfs_b')*span);f.write(b'KEEP_OTHER_SLOT')
-            config.write_text(f'device={media}\nhwid-config=test-hwid\n'+
+            config.write_text(f'[firmware]\ndevice={media}\nhwid-config=test-hwid\n'+
                 ''.join(f'{name}-offset={i*span}\n{name}-size={span}\n' for i,name in enumerate(regions)))
             subprocess.run([str(binary),str(config),str(IMAGES/'release/rootfs.itb'),str(len(raw)),hashlib.sha256(raw).hexdigest()],check=True)
             with media.open('rb') as f:
