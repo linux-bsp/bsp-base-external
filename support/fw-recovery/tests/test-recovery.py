@@ -43,8 +43,6 @@ def cpio_entries(path):
     return entries
 
 
-PDI_LIBRARY=Path(os.environ['PDI_LIBRARY']).resolve()
-
 class Recovery(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -62,12 +60,16 @@ int main(int argc, char **argv) {
 }
 ''')
         cls.native=root/'fwctl-recovery-test'
-        subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror',
-            '-I'+str(HOST/'include'),'-I'+str(SOURCE/'user/lib/pdi/include'),
-            '-I'+str(SOURCE/'user/lib/osa/include'),str(SOURCE/'user/lib/osa/src/osa_log_output.c'),
-            str(wrapper),str(SOURCE/'user/apps/fwctl/recovery/fwctl_recovery_init.c'),
+        native_lib=Path(os.environ['EDK_NATIVE_BUILD']).resolve()/'lib'
+        cls.compile=['cc','-std=c11','-Wall','-Wextra','-Werror',
+            '-I'+str(HOST/'include'),'-I'+str(SOURCE/'user/apps/fwctl/include'),
+            '-I'+str(SOURCE/'user/lib/bsl/include'),'-I'+str(SOURCE/'user/common/include')]
+        cls.link=['-L'+str(native_lib),'-Wl,-rpath,'+str(native_lib),
             '-L'+str(HOST/'lib'),'-Wl,-rpath,'+str(HOST/'lib'),
-            str(PDI_LIBRARY), '-Wl,-rpath,'+str(PDI_LIBRARY.parent),'-lcurl','-lcrypto','-pthread','-o',str(cls.native)],check=True)
+            '-ledk_management','-lbsl','-lnet','-lcrypto','-pthread']
+        subprocess.run([*cls.compile,
+            str(wrapper),str(SOURCE/'user/apps/fwctl/recovery/fwctl_recovery_init.c'),
+            *cls.link,'-o',str(cls.native)],check=True)
 
     @classmethod
     def tearDownClass(cls):
@@ -118,13 +120,10 @@ int main(int argc, char **argv) {
 
     def test_delayed_root_device_discovery(self):
         binary = self.dir/'storage-ready-test'
-        subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror',
-            '-I'+str(HOST/'include'), '-I'+str(SOURCE/'user/lib/pdi/include'),
-            '-I'+str(SOURCE/'user/lib/osa/include'), str(SOURCE/'user/lib/osa/src/osa_log_output.c'),
+        subprocess.run([*self.compile,
             str(SOURCE/'user/apps/fwctl/tests/recovery/fwctl_test_storage_ready.c'),
-            '-L'+str(HOST/'lib'), '-Wl,-rpath,'+str(HOST/'lib'),
             '-Wl,--wrap=access', '-Wl,--wrap=fork', '-Wl,--wrap=execv',
-            str(PDI_LIBRARY), '-Wl,-rpath,'+str(PDI_LIBRARY.parent), '-lcurl', '-lcrypto', '-pthread', '-o', str(binary)], check=True)
+            *self.link, '-o', str(binary)], check=True)
         result = subprocess.run([str(binary)], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stderr, '')
@@ -144,10 +143,11 @@ int main(int argc, char **argv) {
         self.assertEqual(one.read_bytes(),two.read_bytes())
         entries=cpio_entries(one)
         for name in ('init','usr/sbin/fwctl','bin/busybox',
-                     'etc/device-manager/firmware.conf','etc/fw-recovery.conf','etc/network/interfaces',
+                     'etc/edk/system.conf','etc/network/interfaces',
                      'sbin/switch_root','sbin/ip','sbin/ifup','var/run','dev/console'):
             self.assertIn(name,entries)
         self.assertNotIn('usr/bin/curl', entries)
+        self.assertTrue(any('libbsl.so.2' in name for name in entries))
         self.assertEqual(entries['init'][1],b'#!/bin/sh\nexec /usr/sbin/fwctl init\n')
         for alias in ('lib64', 'usr/lib64'):
             self.assertEqual(entries[alias][1], b'lib')

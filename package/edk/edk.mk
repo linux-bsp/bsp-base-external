@@ -40,6 +40,7 @@ endif
 
 # Buildroot owns component selection; Kconfig normalizes this native seed.
 define EDK_CONFIGURE_SELECTION
+    rm -f $(@D)/buildroot-build/.config
     $(INSTALL) -D -m 0644 $(@D)/configs/$(call qstrip,$(BR2_PACKAGE_EDK_DEFCONFIG)) $(@D)/buildroot.config
     $(call KCONFIG_SET_OPT,CONFIG_ARCH,"$(KERNEL_ARCH)",$(@D)/buildroot.config)
     $(call KCONFIG_SET_OPT,CONFIG_PDM,$(if $(filter y,$(BR2_PACKAGE_EDK_PDM)),m,n),$(@D)/buildroot.config)
@@ -54,12 +55,19 @@ endef
 EDK_PRE_CONFIGURE_HOOKS += EDK_CONFIGURE_SELECTION
 
 EDK_INSTALL_STAGING_OPTS = --component libraries
+define EDK_REMOVE_OLD_OSA_STAGING
+    rm -f $(STAGING_DIR)/usr/lib/libosa.so $(STAGING_DIR)/usr/lib/libosa.so.* \
+        $(STAGING_DIR)/usr/lib/pkgconfig/osa.pc $(STAGING_DIR)/usr/include/osa/osa_*.h
+endef
+EDK_POST_INSTALL_STAGING_HOOKS += EDK_REMOVE_OLD_OSA_STAGING
+
 define EDK_INSTALL_HEADERS
     $(if $(filter y,$(BR2_PACKAGE_EDK_INSTALL_HEADERS)),DESTDIR=$(STAGING_DIR) $(BR2_CMAKE) --install $(EDK_BUILDDIR) --component headers)
 endef
 EDK_POST_INSTALL_STAGING_HOOKS += EDK_INSTALL_HEADERS
 
 define EDK_INSTALL_DEFAULTS
+    rm -f $(TARGET_DIR)/usr/lib/libosa.so $(TARGET_DIR)/usr/lib/libosa.so.*
     $(if $(filter y,$(BR2_PACKAGE_EDK_LOGCTL)),$(INSTALL) -d $(TARGET_DIR)/data)
 endef
 EDK_POST_INSTALL_TARGET_HOOKS += EDK_INSTALL_DEFAULTS
@@ -101,13 +109,19 @@ endif
 HOST_EDK_CONF_OPTS = -DCONFIG_FILE=$(@D)/buildroot.config -DEDK_SOURCE_DIR=$(EDK_SITE)
 HOST_EDK_CONF_ENV = HOSTCC="$(HOSTCC)"
 HOST_EDK_INSTALL_OPTS = --component host-tools
-# Host tools now consume the selected PDI/OSA shared library capabilities.
+# Host tools consume the selected shared library capabilities.
 define HOST_EDK_INSTALL_LIBRARIES
     $(BR2_CMAKE) --install $(HOST_EDK_BUILDDIR) --component libraries
 endef
 HOST_EDK_PRE_INSTALL_HOOKS += HOST_EDK_INSTALL_LIBRARIES
 
+define HOST_EDK_REMOVE_OLD_OSA
+    rm -f $(HOST_DIR)/lib/libosa.so $(HOST_DIR)/lib/libosa.so.*
+endef
+HOST_EDK_POST_INSTALL_HOOKS += HOST_EDK_REMOVE_OLD_OSA
+
 define HOST_EDK_CONFIGURE_SELECTION
+    rm -f $(@D)/buildroot-build/.config
     $(INSTALL) -D -m 0644 $(@D)/configs/management_base_defconfig $(@D)/buildroot.config
     $(call KCONFIG_SET_OPT,CONFIG_ARCH,"$(HOSTARCH)",$(@D)/buildroot.config)
     $(call KCONFIG_SET_OPT,CONFIG_DMSERVER,$(if $(filter y,$(BR2_PACKAGE_HOST_EDK_DMSERVER)),y,n),$(@D)/buildroot.config)
