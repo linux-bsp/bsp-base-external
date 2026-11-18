@@ -66,7 +66,7 @@ int main(int argc, char **argv) {
             '-I'+str(SOURCE/'user/lib/bsl/include'),'-I'+str(SOURCE/'user/common/include')]
         cls.link=['-L'+str(native_lib),'-Wl,-rpath,'+str(native_lib),
             '-L'+str(HOST/'lib'),'-Wl,-rpath,'+str(HOST/'lib'),
-            '-ledk_management','-lbsl','-lnet','-lcrypto','-pthread']
+            '-ledk_management','-lbsl','-ledk_bsl_http','-lcurl','-lcrypto','-pthread']
         subprocess.run([*cls.compile,
             str(wrapper),str(SOURCE/'user/apps/fwctl/recovery/fwctl_recovery_init.c'),
             *cls.link,'-o',str(cls.native)],check=True)
@@ -148,6 +148,7 @@ int main(int argc, char **argv) {
             self.assertIn(name,entries)
         self.assertNotIn('usr/bin/curl', entries)
         self.assertTrue(any('libbsl.so.2' in name for name in entries))
+        self.assertFalse(any('libnet.so' in name for name in entries))
         self.assertEqual(entries['init'][1],b'#!/bin/sh\nexec /usr/sbin/fwctl init\n')
         for alias in ('lib64', 'usr/lib64'):
             self.assertEqual(entries[alias][1], b'lib')

@@ -55,11 +55,25 @@ endef
 EDK_PRE_CONFIGURE_HOOKS += EDK_CONFIGURE_SELECTION
 
 EDK_INSTALL_STAGING_OPTS = --component libraries
-define EDK_REMOVE_OLD_OSA_STAGING
+# Match the former EDK payload and its symlinks without removing another libnet.
+define EDK_REMOVE_LEGACY_NET
+    for file in libnet.so libnet.so.1 libnet.so.0.0.1; do \
+        case "$$(readlink -f "$(1)/$$file")" in \
+            */libnet.so.0.0.1) rm -f "$(1)/$$file" || exit 1 ;; \
+        esac; \
+    done
+endef
+
+define EDK_REMOVE_LEGACY_SDK_STAGING
     rm -f $(STAGING_DIR)/usr/lib/libosa.so $(STAGING_DIR)/usr/lib/libosa.so.* \
         $(STAGING_DIR)/usr/lib/pkgconfig/osa.pc $(STAGING_DIR)/usr/include/osa/osa_*.h
+    $(call EDK_REMOVE_LEGACY_NET,$(STAGING_DIR)/usr/lib)
+    if grep -qxF 'Description: EDK net shared library' $(STAGING_DIR)/usr/lib/pkgconfig/net.pc 2>/dev/null; then \
+        rm -f $(STAGING_DIR)/usr/lib/pkgconfig/net.pc $(STAGING_DIR)/usr/include/net/net_can.h \
+            $(STAGING_DIR)/usr/include/net/net_http.h; \
+    fi
 endef
-EDK_POST_INSTALL_STAGING_HOOKS += EDK_REMOVE_OLD_OSA_STAGING
+EDK_POST_INSTALL_STAGING_HOOKS += EDK_REMOVE_LEGACY_SDK_STAGING
 
 define EDK_INSTALL_HEADERS
     $(if $(filter y,$(BR2_PACKAGE_EDK_INSTALL_HEADERS)),DESTDIR=$(STAGING_DIR) $(BR2_CMAKE) --install $(EDK_BUILDDIR) --component headers)
@@ -68,6 +82,7 @@ EDK_POST_INSTALL_STAGING_HOOKS += EDK_INSTALL_HEADERS
 
 define EDK_INSTALL_DEFAULTS
     rm -f $(TARGET_DIR)/usr/lib/libosa.so $(TARGET_DIR)/usr/lib/libosa.so.*
+    $(call EDK_REMOVE_LEGACY_NET,$(TARGET_DIR)/usr/lib)
     $(if $(filter y,$(BR2_PACKAGE_EDK_LOGCTL)),$(INSTALL) -d $(TARGET_DIR)/data)
 endef
 EDK_POST_INSTALL_TARGET_HOOKS += EDK_INSTALL_DEFAULTS
@@ -115,10 +130,11 @@ define HOST_EDK_INSTALL_LIBRARIES
 endef
 HOST_EDK_PRE_INSTALL_HOOKS += HOST_EDK_INSTALL_LIBRARIES
 
-define HOST_EDK_REMOVE_OLD_OSA
+define HOST_EDK_REMOVE_LEGACY_LIBRARIES
     rm -f $(HOST_DIR)/lib/libosa.so $(HOST_DIR)/lib/libosa.so.*
+    $(call EDK_REMOVE_LEGACY_NET,$(HOST_DIR)/lib)
 endef
-HOST_EDK_POST_INSTALL_HOOKS += HOST_EDK_REMOVE_OLD_OSA
+HOST_EDK_POST_INSTALL_HOOKS += HOST_EDK_REMOVE_LEGACY_LIBRARIES
 
 define HOST_EDK_CONFIGURE_SELECTION
     rm -f $(@D)/buildroot-build/.config
