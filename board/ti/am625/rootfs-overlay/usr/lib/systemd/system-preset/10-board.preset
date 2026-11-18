@@ -7,7 +7,7 @@ disable systemd-pstore.service
 disable bmc-watchdog.service
 disable ipmidetectd.service
 disable ipmiseld.service
-disable ptelemetryd.service
+enable ptelemetryd.service
 disable serial-getty@ttyS2.service
 enable bsp-data.service
 enable bsp-can.service

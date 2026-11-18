@@ -53,3 +53,22 @@ The initramfs uses the firmware and recovery sections from the same system confi
 启动完整性、独立 initramfs 和 rootfs A/B 见 [恢复说明](verified-boot.md)。
 当前基线以 workspace 的 docs/am62x/edk-module-refactoring-validation.md 为准，
 旧版本身份与验收边界集中在 [历史发布记录](releases/README.md)。
+
+## 切换星务协议
+
+AM625 固件编入 T5000 和 021，出厂配置使用 T5000，systemd 按 CAN、EDK
+执行器、星务入口的依赖启动。切换 021 时在同一个 `/etc/edk/satellite.conf`
+中设置 `[link] protocol = 021-rk3588-v3.0.2`、两个独立的
+`interface` / `interface_b`、交付的 12 位十六进制 `oid` 和
+`session_file`。会话文件由部署初始化为一行 `0`，放在持久文件系统。
+`[can] interfaces` 列出本服务管理的总线，`classic-interfaces` 列出其中
+用 Classic CAN 的总线。对 021 的两条总线配置 500 kbit/s 并加入该列表。
+通用镜像默认使用 OS 遥测。接入经确认的本地 MCU 后按项目设置
+`[telemetry] mcu_enabled = true`。采用原 T5000 MCU 遥测载荷的项目可设置
+`os_enabled = false` 保持原有慢遥测容量。
+
+Alientek 设备树中的 `main_mcu` 使用第一个板载 CAN 控制器的 CAN FD。
+如果两个板载控制器均用于 021 Classic CAN，配置
+`[telemetry] mcu_enabled = false` 并停用这条本地 MCU 的诊断或控制。
+如需同时使用 CAN FD MCU 和 021，BSP 应提供与 MCU 总线独立的两条
+Classic CAN 链路，或将本地 MCU 部署在不同的外设后端。

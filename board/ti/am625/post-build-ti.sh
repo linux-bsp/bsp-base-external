@@ -43,6 +43,7 @@ rm -f "$TARGET_DIR"/usr/lib/libstdc++.so.*-gdb.py \
     "$TARGET_DIR/usr/bin/valgrind-monitor"
 
 # Incremental Buildroot overlays retain files deleted from the board source.
+rm -f "$TARGET_DIR/usr/bin/debugctl" || exit 1
 board_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd) || exit 1
 for old in device-manager/firmware.conf device-manager/health.conf \
     device-manager/recovery.conf device-manager/sol.conf device-manager/storage.conf \

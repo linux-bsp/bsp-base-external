@@ -2,13 +2,14 @@
 
 PATH=/sbin:/bin:/usr/sbin:/usr/bin
 
-config=/etc/edk/satellite.conf
+config=${2:-/etc/edk/satellite.conf}
 if [ -r "$config" ]; then
 	can_config=$(sed -n '/^[[:space:]]*\[[[:space:]]*can[[:space:]]*\][[:space:]]*$/,/^[[:space:]]*\[/p' "$config" |
 			sed -n 's/^[[:space:]]*\([a-z][a-z0-9_-]*\)[[:space:]]*=[[:space:]]*\(.*\)$/\1=\2/p')
 	while IFS='=' read -r key value; do
 		case "$key" in
 			interfaces) CAN_INTERFACES=$value ;;
+			classic-interfaces) CAN_CLASSIC_INTERFACES=$value ;;
 			bitrate) CAN_BITRATE=$value ;;
 			data-bitrate) CAN_DATA_BITRATE=$value ;;
 			restart-ms) CAN_RESTART_MS=$value ;;
@@ -49,12 +50,14 @@ configure_interface()
 		return 1
 	fi
 
-	"$CAN_IP" link set dev "$can_iface" down 2>/dev/null || true
-	if ! "$CAN_IP" link set dev "$can_iface" type can \
-		bitrate "$CAN_BITRATE" \
-		dbitrate "$CAN_DATA_BITRATE" \
-		fd on restart-ms "$CAN_RESTART_MS"; then
-		echo "CAN: failed to configure CAN FD on $can_iface" >&2
+	"$CAN_IP" link set dev "$can_iface" down || return 1
+	set -- bitrate "$CAN_BITRATE" restart-ms "$CAN_RESTART_MS"
+	case " ${CAN_CLASSIC_INTERFACES:-} " in
+		*" $can_iface "*) set -- "$@" fd off ;;
+		*) set -- "$@" dbitrate "$CAN_DATA_BITRATE" fd on ;;
+	esac
+	if ! "$CAN_IP" link set dev "$can_iface" type can "$@"; then
+		echo "CAN: failed to configure $can_iface" >&2
 		"$CAN_IP" -details link show dev "$can_iface" >&2 || true
 		return 1
 	fi
@@ -67,6 +70,12 @@ configure_interface()
 start()
 {
 	printf 'Starting CAN: '
+	for classic in ${CAN_CLASSIC_INTERFACES:-}; do
+		case " $CAN_INTERFACES " in
+			*" $classic "*) ;;
+			*) echo "FAIL (unknown Classic CAN interface $classic)" >&2; return 1 ;;
+		esac
+	done
 	for can_iface in $CAN_INTERFACES; do
 		if ! configure_interface "$can_iface"; then
 			echo "FAIL"

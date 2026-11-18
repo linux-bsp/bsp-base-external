@@ -50,7 +50,7 @@ define EDK_CONFIGURE_SELECTION
     $(call KCONFIG_SET_OPT,CONFIG_LOGCTL,$(if $(filter y,$(BR2_PACKAGE_EDK_LOGCTL)),y,n),$(@D)/buildroot.config)
     $(call KCONFIG_SET_OPT,CONFIG_TIMECTL,$(if $(filter y,$(BR2_PACKAGE_EDK_TIMECTL)),y,n),$(@D)/buildroot.config)
     $(foreach feature,BMC BMC_CORE BMC_EPDU BMC_TEST_APP BMC_REDFISH BMC_IPMI BMC_PMCP BMC_COLLECTOR,$(call KCONFIG_SET_OPT,CONFIG_$(feature),$(if $(filter y,$(BR2_PACKAGE_EDK_$(feature))),y,n),$(@D)/buildroot.config)$(sep))
-    $(foreach option,BMC_TESTS DMSERVER MANAGEMENT_TESTS PDI_TRANSFER_TESTS,$(call KCONFIG_DISABLE_OPT,CONFIG_$(option),$(@D)/buildroot.config)$(sep))
+    $(foreach option,BMC_TESTS DMSERVER MANAGEMENT_TESTS MANAGEMENT_TRANSFER_TESTS,$(call KCONFIG_DISABLE_OPT,CONFIG_$(option),$(@D)/buildroot.config)$(sep))
 endef
 EDK_PRE_CONFIGURE_HOOKS += EDK_CONFIGURE_SELECTION
 
@@ -68,6 +68,8 @@ define EDK_REMOVE_LEGACY_SDK_STAGING
     rm -f $(STAGING_DIR)/usr/lib/libosa.so $(STAGING_DIR)/usr/lib/libosa.so.* \
         $(STAGING_DIR)/usr/lib/pkgconfig/osa.pc $(STAGING_DIR)/usr/include/osa/osa_*.h
     $(call EDK_REMOVE_LEGACY_NET,$(STAGING_DIR)/usr/lib)
+    rm -f $(STAGING_DIR)/usr/lib/libpdi.so.3 $(STAGING_DIR)/usr/lib/libpdi.so.3.0.0.1
+    rm -f $(addprefix $(STAGING_DIR)/usr/include/pdi/,pdi_satellite.h pdi_ota_files.h pdi_hwid_codec.h pdi_hwid_env.h pdi_service_health.h pdi_protocol_health_wire.h pdi_protocol_ota_wire.h pdi_protocol_time_source.h pdi_transfer_client.h pdi_transfer_server.h)
     if grep -qxF 'Description: EDK net shared library' $(STAGING_DIR)/usr/lib/pkgconfig/net.pc 2>/dev/null; then \
         rm -f $(STAGING_DIR)/usr/lib/pkgconfig/net.pc $(STAGING_DIR)/usr/include/net/net_can.h \
             $(STAGING_DIR)/usr/include/net/net_http.h; \
@@ -83,6 +85,7 @@ EDK_POST_INSTALL_STAGING_HOOKS += EDK_INSTALL_HEADERS
 define EDK_INSTALL_DEFAULTS
     rm -f $(TARGET_DIR)/usr/lib/libosa.so $(TARGET_DIR)/usr/lib/libosa.so.*
     $(call EDK_REMOVE_LEGACY_NET,$(TARGET_DIR)/usr/lib)
+    rm -f $(TARGET_DIR)/usr/lib/libpdi.so.3 $(TARGET_DIR)/usr/lib/libpdi.so.3.0.0.1
     $(if $(filter y,$(BR2_PACKAGE_EDK_LOGCTL)),$(INSTALL) -d $(TARGET_DIR)/data)
 endef
 EDK_POST_INSTALL_TARGET_HOOKS += EDK_INSTALL_DEFAULTS
