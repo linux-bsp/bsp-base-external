@@ -119,7 +119,7 @@ request the exact kernel version from the same server to repair a damaged slot.
 See [the Device Manager guide](../edk/user/apps/device-manager/README.md) for build, publication, device
 configuration, and test commands. The AM62x configuration includes `fwctld`.
 Package defaults leave it disabled; the AM625 board overlay supplies the development
-server and enables polling. Review `/etc/default/fwctld` and persistent overrides
+server and enables polling. Review the `[ota]` section of `/etc/edk/system.conf` and service status
 before deployment.
 
 ## AM625 独立恢复环境

@@ -75,7 +75,7 @@ int main(int argc, char **argv) {
             f.truncate(0x14000000)
             f.seek(0x01000000);f.write(self.kernel)
             f.seek(0x04000000);f.write(self.rootfs)
-        config=(WORKSPACE/'bsp-base-external/board/ti/am625/rootfs-overlay/etc/device-manager/firmware.conf').read_text()
+        config=(WORKSPACE/'bsp-base-external/board/ti/am625/rootfs-overlay/etc/edk/system.conf').read_text()
         config=config.replace('device=/dev/mmcblk1','device='+str(self.disk)).replace('work-dir=/tmp','work-dir='+str(self.root))
         self.config=self.root/'config';self.config.write_text(config)
         self.metadata(legacy=True)

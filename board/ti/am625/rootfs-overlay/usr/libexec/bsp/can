@@ -2,7 +2,22 @@
 
 PATH=/sbin:/bin:/usr/sbin:/usr/bin
 
-[ -r /etc/default/can ] && . /etc/default/can
+config=/etc/edk/satellite.conf
+if [ -r "$config" ]; then
+	can_config=$(sed -n '/^[[:space:]]*\[[[:space:]]*can[[:space:]]*\][[:space:]]*$/,/^[[:space:]]*\[/p' "$config" |
+			sed -n 's/^[[:space:]]*\([a-z][a-z0-9_-]*\)[[:space:]]*=[[:space:]]*\(.*\)$/\1=\2/p')
+	while IFS='=' read -r key value; do
+		case "$key" in
+			interfaces) CAN_INTERFACES=$value ;;
+			bitrate) CAN_BITRATE=$value ;;
+			data-bitrate) CAN_DATA_BITRATE=$value ;;
+			restart-ms) CAN_RESTART_MS=$value ;;
+			ip) CAN_IP=$value ;;
+		esac
+	done <<VALUES
+$can_config
+VALUES
+fi
 
 CAN_INTERFACES=${CAN_INTERFACES:-"can0 can1"}
 CAN_BITRATE=${CAN_BITRATE:-500000}

@@ -1,6 +1,6 @@
 #!/bin/sh
 
-CONFIG=/etc/device-manager/storage.conf
+CONFIG=/etc/edk/system.conf
 STATE_FILE=/run/device-manager/storage-state
 
 report()
@@ -29,11 +29,20 @@ case "$1" in
 			report unavailable 'storage configuration unavailable; persistent storage disabled'
 			exit
 		}
-		device=$(sed -n 's/^device=//p' "$CONFIG" | head -n 1)
-		filesystem=$(sed -n 's/^filesystem=//p' "$CONFIG" | head -n 1)
-		mountpoint=$(sed -n 's/^mountpoint=//p' "$CONFIG" | head -n 1)
-		options=$(sed -n 's/^options=//p' "$CONFIG" | head -n 1)
-		minimum_free_kib=$(sed -n 's/^minimum_free_kib=//p' "$CONFIG" | head -n 1)
+		storage=$(sed -n '/^[[:space:]]*\[[[:space:]]*storage[[:space:]]*\][[:space:]]*$/,/^[[:space:]]*\[/p' "$CONFIG" |
+			sed -n 's/^[[:space:]]*\([a-z][a-z0-9_-]*\)[[:space:]]*=[[:space:]]*\(.*\)$/\1=\2/p')
+		device= filesystem= mountpoint= options= minimum_free_kib=
+		while IFS='=' read -r key value; do
+			case "$key" in
+				device) device=$value ;;
+				filesystem) filesystem=$value ;;
+				mountpoint) mountpoint=$value ;;
+				options) options=$value ;;
+				minimum_free_kib) minimum_free_kib=$value ;;
+			esac
+		done <<VALUES
+$storage
+VALUES
 		case "$minimum_free_kib" in
 			''|*[!0-9]*|????????*) minimum_free_kib=32768 ;;
 		esac

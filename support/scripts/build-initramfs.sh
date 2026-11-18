@@ -79,18 +79,25 @@ copy_dependency()
     done < <(sed -n 's/.*(NEEDED).*\[\([^]]*\)\].*/\1/p' <<< "$metadata")
 }
 
-for name in bin/busybox usr/sbin/fwctl etc/device-manager/firmware.conf usr/share/udhcpc/default.script; do
+for name in bin/busybox usr/sbin/fwctl usr/share/udhcpc/default.script; do
     copy_dependency "$name"
 done
 [[ ! -f "$target/etc/fw_env.config" ]] || copy_dependency etc/fw_env.config
-config="$root/etc/device-manager/firmware.conf"
-signature=$(sed -n 's/^require-signature=//p' "$config")
-if [[ $signature == true ]]; then
-    key=$(sed -n 's/^signature-key=//p' "$config")
+mkdir -p "$root/etc/edk"
+config="$root/etc/edk/system.conf"
+awk '/^[[:space:]]*\[/ { selected = ($0 ~ /^[[:space:]]*\[[[:space:]]*(firmware|recovery)[[:space:]]*\][[:space:]]*$/) } selected' \
+    "$target/etc/edk/system.conf" > "$config"
+grep -Eq '^[[:space:]]*\[[[:space:]]*firmware[[:space:]]*\][[:space:]]*$' "$config"
+grep -Eq '^[[:space:]]*\[[[:space:]]*recovery[[:space:]]*\][[:space:]]*$' "$config"
+signature=$(sed -n 's/^[[:space:]]*require-signature[[:space:]]*=[[:space:]]*\([^[:space:]]*\)[[:space:]]*$/\1/p' "$config")
+case "$signature" in
+1|[Tt][Rr][Uu][Ee]|[Yy][Ee][Ss]|[Oo][Nn])
+    key=$(sed -n 's/^[[:space:]]*signature-key[[:space:]]*=[[:space:]]*\(.*[^[:space:]]\)[[:space:]]*$/\1/p' "$config")
     [[ $key == /* ]] || { echo 'Signature key must be absolute' >&2; exit 1; }
     copy_dependency "$key"
     copy_dependency usr/bin/fit_check_sign
-fi
+    ;;
+esac
 busybox=$(resolve_target bin/busybox)
 for folder in bin sbin usr/bin usr/sbin; do
     for entry in "$target/$folder"/*; do
@@ -109,8 +116,6 @@ for name in etc/ssl/certs/ca-certificates.crt etc/ssl/cert.pem; do
     [[ ! -f $source ]] || copy_dependency "$name"
 done
 cp "$board/recovery.interfaces" "$root/etc/network/interfaces"
-cp "$board/recovery.conf" "$root/etc/fw-recovery.conf"
-chmod 0644 "$root/etc/fw-recovery.conf"
 : > "$root/etc/resolv.conf"
 cp "$scripts/initramfs-init" "$root/init"
 chmod 0755 "$root/init"

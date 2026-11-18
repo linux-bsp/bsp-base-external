@@ -42,27 +42,24 @@ rm -f "$TARGET_DIR"/usr/lib/libstdc++.so.*-gdb.py \
     "$TARGET_DIR/usr/libexec/valgrind/valgrind-monitor-def.py" \
     "$TARGET_DIR/usr/bin/valgrind-monitor"
 
-# The initramfs and rootfs maintenance tool use the same board recovery settings.
+# Incremental Buildroot overlays retain files deleted from the board source.
 board_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd) || exit 1
-install -D -m 0644 "$board_dir/recovery.conf" \
-    "$TARGET_DIR/etc/device-manager/recovery.conf" || exit 1
+for old in device-manager/firmware.conf device-manager/health.conf \
+    device-manager/recovery.conf device-manager/sol.conf device-manager/storage.conf \
+    device-manager/time.conf default/fwctl default/fwctld default/can \
+    edk/psatellited.conf edk/ptelemetryd.conf edk/bmc.password edk/bmc.password.example \
+    edk/supermicro-bmc.password edk/supermicro-bmc.password.example \
+    libbmc/devices.conf libbmc/xfusion.password.example libbmc/supermicro.password.example \
+    libbmc/xfusion.password libbmc/supermicro.password; do
+    [ ! -e "$TARGET_DIR/etc/$old" ] || unlink "$TARGET_DIR/etc/$old" || exit 1
+done
+rmdir "$TARGET_DIR/etc/libbmc" 2>/dev/null || :
+rmdir "$TARGET_DIR/etc/device-manager" 2>/dev/null || :
 
-# Remove paths used before BMC configuration was consolidated under
-# /etc/libbmc. Buildroot overlays do not remove deleted source files from an
-# incremental target directory.
-rm -f \
-	"$TARGET_DIR/etc/edk/bmc.password" \
-	"$TARGET_DIR/etc/edk/bmc.password.example" \
-	"$TARGET_DIR/etc/edk/supermicro-bmc.password" \
-	"$TARGET_DIR/etc/edk/supermicro-bmc.password.example"
-
-# Credentials are local overlay inputs. Force safe permissions in the image
-# even when the developer's source file was created with a permissive umask.
-for password_file in \
-	"$TARGET_DIR/etc/libbmc/xfusion.password" \
-	"$TARGET_DIR/etc/libbmc/supermicro.password"
-do
-	[ ! -f "$password_file" ] || chmod 0600 "$password_file"
+# Real device credentials are provisioned after image installation.
+for name in xfusion supermicro; do
+    secret="$TARGET_DIR/etc/edk/credentials/$name.password"
+    [ ! -e "$secret" ] || unlink "$secret" || exit 1
 done
 
 # Reject malformed service scripts before creating any rootfs image.

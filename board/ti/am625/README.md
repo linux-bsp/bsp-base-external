@@ -43,15 +43,10 @@ and requires no lighttpd. Use `dmcli debug --local help` for local validation.
 Hardware controls require explicit confirmation in the web form. See
 `edk/docs/device-manager/debug.md` for API, timeout and deployment boundaries.
 
-`bmc-test` reads its multi-device inventory from
-`rootfs-overlay/etc/libbmc/devices.conf`. The image currently contains xFusion
-and Supermicro profiles with independent Redfish/IPMI endpoints, usernames,
-password-file paths, timeouts, and protocol flags. The xFusion endpoint is
-`192.168.50.201`; Supermicro is `192.168.10.252`. Redfish uses HTTPS.
-Select one with
-`bmc-test --device-id <id>`. Local password files under
-`rootfs-overlay/etc/libbmc/` are ignored by Git; the corresponding `.example`
-files document their expected names.
+`rootfs-overlay/etc/edk/bmc.conf` lists xFusion and Supermicro BMC profiles.
+Provision password files under `/data/edk/credentials/` on the device.
+The board installs `bmc.conf`, `satellite.conf` and `system.conf` in `/etc/edk/`.
+The initramfs uses the firmware and recovery sections from the same system configuration.
 
 ## 固件验证与历史
 
